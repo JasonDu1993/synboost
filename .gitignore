@@ -13,3 +13,5 @@ image_segmentation_psa/exp/*
 *.tar
 demo_files/
 *.vscode
+data/final_dataset/*
+sample_images/onnx_conversion/*

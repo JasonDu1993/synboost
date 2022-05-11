@@ -32,6 +32,7 @@ demo_folder = opts.demo_folder
 save_folder = opts.save_folder
 
 images = [os.path.join(demo_folder, image) for image in os.listdir(demo_folder)]
+images = [x for x in images if os.path.isfile(x)]
 detector = AnomalyDetector(True)
 
 # Save folders
@@ -56,6 +57,9 @@ for idx, image in enumerate(images):
     results = detector.estimator_image(image)
 
     anomaly_map = results['anomaly_map'].convert('RGB')
+    anomaly_map = Image.fromarray(
+        np.concatenate([np.array(image), np.array(anomaly_map)], axis=1)
+    )
     anomaly_map.save(os.path.join(anomaly_path,basename))
 
     semantic_map = colorize_mask(np.array(results['segmentation']))

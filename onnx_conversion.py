@@ -26,6 +26,8 @@ TestOptions = TestOptions()
 opt = TestOptions.parse()
 opt.use_vae = True
 
+_opset_version = 11 
+
 def remove_all_spectral_norm(item):
     if isinstance(item, nn.Module):
         try:
@@ -72,7 +74,7 @@ def convert_segmentation_model(model_name = 'segmentation.onnx'):
                       x,                         # model input (or a tuple for multiple inputs)
                       model_name,   # where to save the model (can be a file or file-like object)
                       export_params=True,        # store the trained parameter weights inside the model file
-                      opset_version=11,          # the ONNX version to export the model to
+                      opset_version=_opset_version,          # the ONNX version to export the model to
                       do_constant_folding=True,  # whether to execute constant folding for optimization
                       input_names = ['input'],   # the model's input names
                       output_names = ['output'], # the model's output names
@@ -146,7 +148,7 @@ def convert_synthesis_model(dataroot = './sample_images/onnx_conversion', model_
                       (input_semantics, image),  # model input (or a tuple for multiple inputs)
                       model_name,   # where to save the model (can be a file or file-like object)
                       export_params=True,        # store the trained parameter weights inside the model file
-                      opset_version=11,          # the ONNX version to export the model to
+                      opset_version=_opset_version,          # the ONNX version to export the model to
                       do_constant_folding=True, # whether to execute constant folding for optimization
                       verbose=True,
                       input_names = ['input'],   # the model's input names
@@ -254,7 +256,9 @@ def convert_dissimilarity_model(
     diss_model = DissimNetPrior(**config['model']).cuda()
     
     diss_model.eval()
-    model_path = os.path.join('image_dissimilarity', save_fdr, exp_name, '%s_net_%s.pth' % (epoch, exp_name))
+    # model_path = os.path.join('image_dissimilarity', save_fdr, exp_name, '%s_net_%s.pth' % (epoch, exp_name))
+    # model_path = 'image_dissimilarity/output/results/replicate_best_mult_3/best_net_replicate_best_mult_3.pth'
+    model_path = 'models/image-dissimilarity/best_net_baseline_void_prior_spadedecoder_mult_3.pth'
     model_weights = torch.load(model_path)
     diss_model.load_state_dict(model_weights)
     
@@ -279,7 +283,7 @@ def convert_dissimilarity_model(
                       (original, synthesis, semantic, entropy, mae, distance),  # model input (or a tuple for multiple inputs)
                       model_name,  # where to save the model (can be a file or file-like object)
                       export_params=True,  # store the trained parameter weights inside the model file
-                      opset_version=11,  # the ONNX version to export the model to
+                      opset_version=_opset_version,  # the ONNX version to export the model to
                       do_constant_folding=True,  # whether to execute constant folding for optimization
                       input_names=['input'],  # the model's input names
                       output_names=['output'],  # the model's output names
@@ -308,6 +312,9 @@ def convert_dissimilarity_model(
 
 
 if __name__ == '__main__':
-    convert_segmentation_model()
-    convert_synthesis_model()
+    # convert_segmentation_model()
+    print('Segmentation mode converted.')
+    # convert_synthesis_model()
+    print('Synthesis mode converted.')
     convert_dissimilarity_model('./image_dissimilarity/configs/test/road_anomaly_configuration.yaml')
+    print('Dissimilarity model converted.')

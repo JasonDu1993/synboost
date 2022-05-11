@@ -1,6 +1,6 @@
 # Name of the experiment for saving files
 experiment_name: replicate_best_mult_3 # where checkpoints are stored
-save_folder: /media/giancarlo/Samsung_T5/personal/master_thesis/cvpr/results/ # where checkpoints are stored
+save_folder: output/results/ # where checkpoints are stored
 which_epoch: best
 store_results: /media/giancarlo/Samsung_T5/personal/master_thesis/cvpr/road_anomaly/predictions
 visualize: False
@@ -23,7 +23,7 @@ dataset:
 # parameters for dataloaders
 test_dataloader:
   dataset_args:
-    dataroot: /media/giancarlo/Samsung_T5/data/thesis/final_dataset/road_anomaly
+    dataroot: /workspace/data/road_obstacles/synboost/final_dataset/road_anomaly
     preprocess_mode: none
     crop_size: 512
     aspect_ratio: 2
