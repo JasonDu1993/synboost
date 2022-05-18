@@ -1,8 +1,14 @@
 import argparse
 import os
 from PIL import Image
+import torch
 from estimator import AnomalyDetector
 import numpy as np
+from log_util import get_root_logger
+from time import time
+from build_model import RoadAnomalyDetector
+from seg_to_rect import postprocessing
+from draw_box_util import draw_total_box
 
 # function for segmentations
 palette = [128, 64, 128, 244, 35, 232, 70, 70, 70, 102, 102, 156, 190, 153, 153,
@@ -14,6 +20,7 @@ zero_pad = 256 * 3 - len(palette)
 for i in range(zero_pad):
     palette.append(0)
 
+
 def colorize_mask(mask):
     """
     Colorize a segmentation mask.
@@ -23,6 +30,7 @@ def colorize_mask(mask):
     new_mask.putpalette(palette)
     return new_mask
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--demo_folder', type=str, default='./sample_images', help='Path to folder with images to be run.')
 parser.add_argument('--save_folder', type=str, default='./results', help='Folder to where to save the results')
@@ -30,10 +38,10 @@ opts = parser.parse_args()
 
 demo_folder = opts.demo_folder
 save_folder = opts.save_folder
-
+logger = get_root_logger()
 images = [os.path.join(demo_folder, image) for image in os.listdir(demo_folder)]
 images = [x for x in images if os.path.isfile(x)]
-detector = AnomalyDetector(True)
+detector = AnomalyDetector(True, input_shape=(3, 512, 1024),)
 
 # Save folders
 semantic_path = os.path.join(save_folder, 'semantic')
@@ -50,10 +58,11 @@ os.makedirs(entropy_path, exist_ok=True)
 os.makedirs(distance_path, exist_ok=True)
 os.makedirs(perceptual_diff_path, exist_ok=True)
 
-for idx, image in enumerate(images):
-    basename = os.path.basename(image).replace('.jpg', '.png')
+for idx, img_path in enumerate(images):
+    print("img_path:{}".format(img_path))
+    basename = os.path.basename(img_path).replace('.jpg', '.png')
     print('Evaluating image %i out of %i'%(idx+1, len(images)))
-    image = Image.open(image)
+    image = Image.open(img_path)
     results = detector.estimator_image(image)
 
     anomaly_map = results['anomaly_map'].convert('RGB')
@@ -76,4 +85,5 @@ for idx, image in enumerate(images):
 
     perceptual_diff = results['perceptual_diff'].convert('RGB')
     perceptual_diff.save(os.path.join(perceptual_diff_path,basename))
+    break
 

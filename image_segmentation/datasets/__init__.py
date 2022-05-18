@@ -1,14 +1,14 @@
 """
 Dataset setup and loaders
 """
-from datasets import cityscapes
-from datasets import mapillary
-from datasets import kitti
-from datasets import camvid
+from image_segmentation.datasets import cityscapes
+from image_segmentation.datasets import mapillary
+from image_segmentation.datasets import kitti
+from image_segmentation.datasets import camvid
 import torchvision.transforms as standard_transforms
 
-import transforms.joint_transforms as joint_transforms
-import transforms.transforms as extended_transforms
+import image_segmentation.transforms.joint_transforms as joint_transforms
+import image_segmentation.transforms.transforms as extended_transforms
 from torch.utils.data import DataLoader
 
 

@@ -5,7 +5,7 @@ class Config():
     batchSize=1
     cache_filelist_read=False
     cache_filelist_write=False
-    checkpoints_dir='models'
+    checkpoints_dir='../road_obstacles/models'
     contain_dontcare_label=False
     crop_size=512
     dataroot='./results/temp'
@@ -45,7 +45,7 @@ class Config():
     results_dir='./results/'
     semantic_nc=36
     serial_batches=True
-    snapshot='models/image-segmentation/cityscapes_best.pth'
+    snapshot='../road_obstacles/models/image-segmentation/cityscapes_best.pth'
     use_vae=True
     which_epoch='latest'
     z_dim=256

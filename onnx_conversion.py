@@ -9,7 +9,7 @@ from torch.backends import cudnn
 import torch.onnx
 import torch.nn as nn
 import torchvision.transforms as transforms
-import onnx
+# import onnx
 import onnxruntime
 
 from options.test_options import TestOptions
@@ -17,10 +17,10 @@ from options.test_options import TestOptions
 
 import sys
 sys.path.insert(0, './image_segmentation')
-import network
-from optimizer import restore_snapshot
-from datasets import cityscapes
-from config import assert_and_infer_cfg
+import image_segmentation.network as network
+from image_segmentation.optimizer import restore_snapshot
+from image_segmentation.datasets import cityscapes
+from image_segmentation.config import assert_and_infer_cfg
 
 TestOptions = TestOptions()
 opt = TestOptions.parse()
@@ -95,12 +95,12 @@ def convert_segmentation_model(model_name = 'segmentation.onnx'):
     print("Exported model has been tested with ONNXRuntime, and the result looks good!")
 
 
-def convert_synthesis_model(dataroot = './sample_images/onnx_conversion', model_name = 'synthesis.onnx'):
+def convert_synthesis_model(dataroot = '/zhoudu/workspaces/road_obstacles/sample_images/onnx_conversion', model_name = 'synthesis.onnx'):
 
     import sys
     sys.path.insert(0, './image_synthesis')
-    from models.pix2pix_model import Pix2PixModel
-    import data
+    from image_synthesis.models.pix2pix_model import Pix2PixModel
+    import image_synthesis.data as data
 
     world_size = 1
     rank = 0
@@ -258,7 +258,7 @@ def convert_dissimilarity_model(
     diss_model.eval()
     # model_path = os.path.join('image_dissimilarity', save_fdr, exp_name, '%s_net_%s.pth' % (epoch, exp_name))
     # model_path = 'image_dissimilarity/output/results/replicate_best_mult_3/best_net_replicate_best_mult_3.pth'
-    model_path = 'models/image-dissimilarity/best_net_baseline_void_prior_spadedecoder_mult_3.pth'
+    model_path = '/zhoudu/workspaces/road_obstacles/models/image-dissimilarity/best_net_baseline_void_prior_spadedecoder_mult_3.pth'
     model_weights = torch.load(model_path)
     diss_model.load_state_dict(model_weights)
     
