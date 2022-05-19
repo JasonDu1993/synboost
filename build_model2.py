@@ -110,7 +110,7 @@ class RoadAnomalyDetector(nn.Module):
         # 0 segnet img pytorch
         # img = self.pytorch_resize_totensor(image, size=(self.h, self.w), mul=1, interpolation=Image.NEAREST, totensor=False)
         # img = torch.from_numpy(img_np_chw).to("cuda:0")
-        img = img.squeeze()
+        # img = img.squeeze()
         img_tensor = self.to_tensor(img)
         mean_std = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         seg_norm = transforms.Normalize(*mean_std)
@@ -121,7 +121,7 @@ class RoadAnomalyDetector(nn.Module):
         print("img trans {} s".format(t1 - t0))
         # predict segmentation
         with torch.no_grad():
-            seg_outs = self.seg_net(img_tensor.unsqueeze(0).cuda())  # shape: [B, 19, H=1024, W=2048]
+            seg_outs = self.seg_net(img_tensor)  # shape: [B, 19, H=1024, W=2048]
         t2 = time()
         print("img seg_net {} s".format(t2 - t1))
         # np.save("seg_outs.npy", seg_outs.cpu().numpy())
@@ -130,7 +130,8 @@ class RoadAnomalyDetector(nn.Module):
         seg_softmax_out = F.softmax(seg_outs, dim=1)  # shape: [B, 19, H=1024, W=2048]
         a1 = time()
         print("syn_net preprocess softmax {} s".format(a1 - a0))
-        seg_final = np.argmax(seg_outs.cpu().numpy().squeeze(), axis=0)  # segmentation map shape: [H=1024, W=2048]
+        # seg_final = np.argmax(seg_outs.cpu().numpy().squeeze(), axis=0)  # segmentation map shape: [H=1024, W=2048]
+        _, seg_final = seg_softmax_out.max(dim=1)  # segmentation map shape: [B, H=1024, W=2048]
         a2 = time()
         print("syn_net preprocess argmax {} s".format(a2 - a1))
         # np.save("seg_final.npy", seg_final)
@@ -138,6 +139,7 @@ class RoadAnomalyDetector(nn.Module):
         # 第二步：synnet:label_img
         # get label map for synthesis model
         a4 = time()
+        seg_final = seg_final.cpu().numpy()
         label_out = np.zeros_like(seg_final)
         for label_id, train_id in self.opt.dataset_cls.id_to_trainid.items():
             a00 = time()
@@ -183,7 +185,7 @@ class RoadAnomalyDetector(nn.Module):
 
         # run synthesis
         syn_input = {'label': label_tensor.unsqueeze(0), 'instance': instance_tensor.unsqueeze(0),
-                     'image': image_tensor.unsqueeze(0)}
+                     'image': image_tensor}
 
         generated = self.syn_net(syn_input, mode='inference')  # shape [B, 3, 256, 512]
 
@@ -197,13 +199,14 @@ class RoadAnomalyDetector(nn.Module):
 
         # get initial transformation
         # 第三步：vggdiff: 合成图，也是第四步的输入
-        image_numpy = ((generated.squeeze().cpu().numpy() + 1) / 2.0) * 255
-        syn_image_tensor1 = self.pytorch_resize_totensor(image_numpy, size=(256, 512), mul=1,
+        # image_numpy = ((generated + 1) / 2.0) * 255
+        image_torch = ((generated + 1) / 2.0) * 255
+        syn_image_tensor1 = self.pytorch_resize_totensor(image_torch, size=(256, 512), mul=1,
                                                          interpolation=Image.NEAREST)
         # 4 diss
         # syn_image_tensor = self.norm_transform_diss(syn_image_tensor).unsqueeze(0).cuda()
         # 4 vgg_diff
-        syn_image_tensor1 = self.norm_transform_diss(syn_image_tensor1).unsqueeze(0).cuda()
+        syn_image_tensor1 = self.norm_transform_diss(syn_image_tensor1)
 
         # 第三步：vggdiff: 输入原图，也是第四步的输入
         # 5 diss image origin origin
@@ -227,7 +230,7 @@ class RoadAnomalyDetector(nn.Module):
         # 5 diss
         # image_tensor = self.norm_transform_diss(image_tensor).unsqueeze(0).cuda()
         # 5 vgg_diff
-        image_tensor1 = self.norm_transform_diss(image_tensor1).unsqueeze(0).cuda()
+        image_tensor1 = self.norm_transform_diss(image_tensor1)
         b2 = time()
         print("vgg_diff preprocess resize norm {} s".format(b2 - b1))
         print("vgg_diff preprocess total {} s".format(b2 - b0))
@@ -326,11 +329,16 @@ class RoadAnomalyDetector(nn.Module):
         diss_pred = Image.fromarray(diss_pred_img).resize((image_og_w, image_og_h))
         # np.save("diss_pred_resize.npy", np.array(diss_pred))
         # 可视化分割图
-        semantic = Image.fromarray(seg_final.astype(np.uint8))
+        if isinstance(seg_final, torch.Tensor):
+            seg_final = seg_final.cpu().numpy()
+            if seg_final.ndim() == 4:
+                seg_final = seg_final[0]
+        seg_final_img = seg_final.squeeze(0).astype(np.uint8)
+        semantic = Image.fromarray(seg_final_img)
         seg_img = semantic.resize((image_og_w, image_og_h))
         # np.save("seg_img.npy", np.array(seg_img))
         # 可视化合成图
-        image_numpy = (np.transpose(generated.squeeze().cpu().numpy(), (1, 2, 0)) + 1) / 2.0 * 255
+        image_numpy = (np.transpose(generated[0].squeeze().cpu().numpy(), (1, 2, 0)) + 1) / 2.0 * 255
         synthesis_final_img = Image.fromarray(image_numpy.astype(np.uint8))
         synthesis = synthesis_final_img.resize((image_og_w, image_og_h))
         # 可视化entropy
@@ -536,7 +544,7 @@ if __name__ == '__main__':
         # img = img.permute(0, 2, 3, 1).cpu().numpy().squeeze()
         anomaly_map = results['anomaly_map'].convert('RGB')
         anomaly_map = Image.fromarray(
-            np.concatenate([np.array(image), np.array(anomaly_map)], axis=1)
+            np.concatenate([np.array(image)[:, :, ::-1], np.array(anomaly_map)], axis=1)
         )
         anomaly_map.save(os.path.join(anomaly_path, basename))
 
