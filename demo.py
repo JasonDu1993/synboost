@@ -66,12 +66,13 @@ for idx, img_path in enumerate(images):
     print("img_path:{}".format(img_path))
     basename = os.path.basename(img_path).replace('.jpg', '.png')
     print('Evaluating image %i out of %i' % (idx + 1, len(images)))
-    image = Image.open(img_path)
+    # image = Image.open(img_path)
+    image = cv2.imread(img_path)
     results = detector.estimator_image(image)
 
     anomaly_map = results['anomaly_map'].convert('RGB')
     anomaly_map = Image.fromarray(
-        np.concatenate([np.array(image), np.array(anomaly_map)], axis=1)
+        np.concatenate([np.array(image)[:,:,::-1], np.array(anomaly_map)], axis=1)
     )
     anomaly_map.save(os.path.join(anomaly_path, basename))
 

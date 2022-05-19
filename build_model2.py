@@ -72,6 +72,24 @@ class RoadAnomalyDetector(nn.Module):
         one_hot = one_hot[:, :num_classes - 1, :, :]
         return one_hot
 
+    def pytorch_resize_totensor(self, x, size=(256, 512), mul=1, interpolation=Image.NEAREST, totensor=True):
+        if isinstance(x, Image.Image):
+            x = np.array(x).transpose((2, 0, 1))
+            x = torch.from_numpy(x)
+        elif isinstance(x, np.ndarray):
+            x = torch.from_numpy(x)
+        x = x.type(torch.uint8)
+        h, w = size
+
+        if x.dim() < 3:
+            x = x.unsqueeze(0)
+        transform_semantic_resize = transforms.Resize(size=(h, w), interpolation=interpolation)
+        x = transform_semantic_resize(x)
+        if totensor:
+            x = self.to_tensor(x)
+        x = x * mul
+        return x
+
     def forward(self, img, origin_h, origin_w):
         """
 
@@ -84,192 +102,254 @@ class RoadAnomalyDetector(nn.Module):
         # predict segmentation
         t0 = time()
         B, C, H, W = img.shape
-        image = self.to_tensor(img)
-        image = self.img_transform(image)
+        # 0 segnet img pytorch
+        img_tensor = self.pytorch_resize_totensor(image, size=(self.h, self.w), mul=1, interpolation=Image.NEAREST)
+        mean_std = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        seg_norm = transforms.Normalize(*mean_std)
+        img_tensor = seg_norm(img_tensor)
+        self.valid(img_tensor, "image.npy")
+        # np.save("image.npy", img_tensor.unsqueeze(0).cuda().cpu().numpy())
         t1 = time()
         print("img trans {} s".format(t1 - t0))
-        self.valid(image, "image.npy")
+        # predict segmentation
         with torch.no_grad():
-            seg_outs = self.seg_net(image)  # shape: [B, 19, H=1024, W=2048] 一致
-        self.valid(seg_outs, "seg_outs.npy")
+            seg_outs = self.seg_net(img_tensor.unsqueeze(0).cuda())  # shape: [B, 19, H=1024, W=2048]
         t2 = time()
         print("img seg_net {} s".format(t2 - t1))
+        # np.save("seg_outs.npy", seg_outs.cpu().numpy())
         a0 = time()
         seg_softmax_out = F.softmax(seg_outs, dim=1)  # shape: [B, 19, H=1024, W=2048]
         a1 = time()
-        print("img softmax {} s".format(a1 - a0))
-        _, seg_final = seg_softmax_out.max(dim=1)  # segmentation map shape: [B, H=1024, W=2048]
+        print("syn_net preprocess softmax {} s".format(a1 - a0))
+        seg_final = np.argmax(seg_outs.cpu().numpy().squeeze(), axis=0)  # segmentation map shape: [H=1024, W=2048]
         a2 = time()
-        print("img max {} s".format(a2 - a1))
-        self.valid(seg_final, "seg_final.npy")
+        print("syn_net preprocess argmax {} s".format(a2 - a1))
+        # np.save("seg_final.npy", seg_final)
         # get entropy
-        entropy = torch.sum(-seg_softmax_out * torch.log(seg_softmax_out), dim=1).unsqueeze(0)
+        entropy = torch.sum(-seg_softmax_out * torch.log(seg_softmax_out), dim=1)
         entropy = (entropy - entropy.min()) / entropy.max()
         entropy *= 255  # for later use in the dissimilarity
         a3 = time()
-        print("img entropy {} s".format(a3 - a2))
+        print("syn_net preprocess entropy {} s".format(a3 - a2))
         # get softmax distance
         distance, _ = torch.topk(seg_softmax_out, 2, dim=1)
         max_logit = distance[:, 0, :, :]
         max2nd_logit = distance[:, 1, :, :]
         result = max_logit - max2nd_logit
-        result = result.unsqueeze(1)
         distance = 1 - (result - result.min()) / result.max()
         distance *= 255  # for later use in the dissimilarity
         a4 = time()
-        print("img distance {} s".format(a4 - a3))
+        print("syn_net preprocess distance {} s".format(a4 - a3))
+
         # get label map for synthesis model
-        seg_final = seg_final.unsqueeze(1)
-        # pytorch
-        label_out = torch.zeros_like(seg_final)
-
-        for label_id, train_id in self.id_to_trainid.items():
-            label_out[seg_final == train_id] = label_id
-        label_img = label_out
-
-        # numpy
-        # seg_final_np = seg_final.cpu().numpy()
-        # label_out = np.zeros_like(seg_final_np)
-        # for label_id, train_id in self.id_to_trainid.items():
-        #     label_out[np.where(seg_final_np == train_id)] = label_id
-        # label_img = torch.from_numpy(label_out).to(img.device)
-        self.valid(label_img, "label_img.npy")
+        label_out = np.zeros_like(seg_final)
+        for label_id, train_id in self.opt.dataset_cls.id_to_trainid.items():
+            a00 = time()
+            label_out[np.where(seg_final == train_id)] = label_id
+            a01 = time()
+            # print("syn_net preprocess {} label deal {} s".format(label_id, a01 - a00))
         a5 = time()
-        print("img label {} s".format(a5 - a4))
+        print("syn_net preprocess label {} s".format(a5 - a4))
+        # np.save("label_img.npy", np.array(label_out))
+
+        # 1 label_img origin
+        # label_img = Image.fromarray((label_out).astype(np.uint8))
         # prepare for synthesis
-        label_tensor = self.transform_semantic_resize(label_img)
-        # label_tensor = label_tensor.type(torch.uint8)
-        # self.valid(label_tensor[0], "label_tensor1.npy")
-        label_tensor = self.to_tensor(label_tensor)
-        # self.valid(label_tensor, "label_tensor2.npy")
-        label_tensor = label_tensor * 255.0
-        label_tensor = label_tensor.type(torch.uint8)
-        # self.valid(label_tensor, "label_tensor3.npy")
-        self.valid(label_tensor, "label_tensor.npy")
+        # label_tensor = self.transform_semantic(label_img) * 255.0
+        # 1 label_img pytorch
+        label_tensor = self.pytorch_resize_totensor(label_out, size=(256, 512), mul=255, interpolation=Image.NEAREST)
+        a6 = time()
+        print("syn_net preprocess label resize {} s".format(a6 - a5))
+        # self.valid(label_tensor, "label_tensor.npy")
+
         label_tensor[label_tensor == 255] = 35  # 'unknown' is opt.label_nc
-        image_tensor = self.transform_image_syn_resize(img)
-        image_tensor = self.to_tensor(image_tensor)
-        image_tensor = self.transform_image_syn_norm(image_tensor)
-        self.valid(image_tensor, "image_syn.npy")
+        a7 = time()
+        print("syn_net preprocess label 255 {} s".format(a7 - a6))
+        # 2 syn_img_input origin
+        # image_tensor = self.transform_image_syn(img)
+        # 2 syn_img_input pytorch
+        image_tensor = self.pytorch_resize_totensor(img, size=(256, 512), mul=1, interpolation=Image.BICUBIC)
+        syn_norm = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        image_tensor = syn_norm(image_tensor)
+        # np.save("image_syn.npy", image_tensor.cpu().numpy())
+        # self.valid(image_tensor, "image_syn.npy")
+        a8 = time()
+        print("syn_net preprocess img resize {} s".format(a8 - a7))
+
         # Get instance map in right format. Since prediction doesn't have instance map, we use semantic instead
         instance_tensor = label_tensor.clone()
-        a6 = time()
-        print("img trans {} s".format(a6 - a5))
-        # # run synthesis
-        image_tensor = torch.from_numpy(np.load("image_syn.npy")).unsqueeze(0).to(img.device)
-        syn_input = {'label': label_tensor, 'instance': instance_tensor,
-                     'image': image_tensor}
+        a9 = time()
+        print("syn_net preprocess instance_tensor resize {} s".format(a9 - a8))
+        print("syn_net preprocess total {} s".format(a9 - a0))
         t3 = time()
         print("img syn_net input preprocess {} s".format(t3 - t2))
+
+        # run synthesis
+        syn_input = {'label': label_tensor.unsqueeze(1), 'instance': instance_tensor.unsqueeze(1),
+                     'image': image_tensor}
+
         generated = self.syn_net(syn_input, mode='inference')  # shape [B, 3, 256, 512]
-        self.valid(generated, "generated.npy")
+        # np.save("generated.npy", generated.cpu().numpy())
         t4 = time()
         print("img syn_net {} s".format(t4 - t3))
-        synthesis_final_img = (generated + 1) / 2.0 * 255
-        synthesis_final_img = synthesis_final_img.type(torch.uint8)
+        b0 = time()
+        c0 = time()
+        aa = generated.squeeze().cpu().numpy()
+        c1 = time()
+        print("vgg_diff preprocess generated numpy {} s, shape: {}".format(c1 - c0, aa.shape))
+        bb = np.transpose(aa, (1, 2, 0))
+        c2 = time()
+        print("vgg_diff preprocess transpose {} s".format(c2 - c1))
+        image_numpy = (bb + 1) / 2.0
+        c3 = time()
+        print("vgg_diff preprocess +1/2 {} s".format(c3 - c2))
+        # image_numpy = (np.transpose(generated.squeeze().cpu().numpy(), (1, 2, 0)) + 1) / 2.0
+
+        synthesis_final_img = Image.fromarray((image_numpy * 255).astype(np.uint8))
 
         # prepare dissimilarity
-        entropy_img = entropy.type(torch.uint8)
-        distance = distance.type(torch.uint8)
-        semantic = seg_final.type(torch.uint8)
+        entropy = entropy.cpu().numpy()
+        distance = distance.cpu().numpy()
+        entropy_img = Image.fromarray(entropy.astype(np.uint8).squeeze())
+        c4 = time()
+        print("vgg_diff preprocess entropy_img {} s, shape: {}".format(c4 - c3, entropy.shape))
+        distance_img = Image.fromarray(distance.astype(np.uint8).squeeze())
+        c5 = time()
+        print("vgg_diff preprocess distance {} s".format(c5 - c4))
+        semantic = Image.fromarray((seg_final).astype(np.uint8))
+        c6 = time()
+        print("vgg_diff preprocess semantic {} s".format(c6 - c5))
+        print("vgg_diff preprocess toimg total {} s".format(c6 - c0))
+        b1 = time()
+        print("vgg_diff preprocess toimg {} s".format(b1 - b0))
 
         # get initial transformation
-        semantic_tensor = self.base_transforms_diss_resize(semantic)
-        semantic_tensor = self.to_tensor(semantic_tensor) * 255
+        # 3 diss semantic origin
+        # semantic_tensor = self.base_transforms_diss(semantic) * 255
+        # 3 diss semantic pytorch
+        semantic_tensor = self.pytorch_resize_totensor(seg_final, size=(256, 512), mul=255, interpolation=Image.NEAREST)
+        # 4 vgg_diff diss syn image origin
+        syn_image_tensor = self.base_transforms_diss(synthesis_final_img)
+        # 4 vgg_diff diss syn image pytorch
+        image_numpy = ((generated.squeeze().cpu().numpy() + 1) / 2.0) * 255
+        syn_image_tensor1 = self.pytorch_resize_totensor(image_numpy, size=(256, 512), mul=1,
+                                                         interpolation=Image.NEAREST)
+        # 5 diss image origin origin
+        # image_tensor = self.base_transforms_diss(img)
 
-        syn_image_tensor = self.base_transforms_diss_resize(synthesis_final_img)
-        syn_image_tensor = self.to_tensor(syn_image_tensor) * 255
+        # 5 diss image pytorch input12
+        img2 = self.pytorch_resize_totensor(img, size=(self.h, self.w), mul=1, interpolation=Image.NEAREST,
+                                            totensor=False)
+        img2 = img2.type(torch.uint8).cpu().numpy()
+        image_tensor1 = self.pytorch_resize_totensor(img2, size=(256, 512), mul=1, interpolation=Image.NEAREST)
 
-        image_tensor = self.base_transforms_diss_resize(img)
-        image_tensor = self.to_tensor(image_tensor) * 255
+        # 5 diss image pytorch input1
+        img1 = self.pytorch_resize_totensor(img, size=(self.h, self.w), mul=1, interpolation=Image.NEAREST,
+                                            totensor=False)
+        img1 = img1.permute(1, 2, 0).type(torch.uint8).cpu().numpy()
+        img1 = Image.fromarray(img1.astype(np.uint8))
+        image_tensor2 = self.base_transforms_diss(img1)
 
-        syn_image_tensor = self.norm_transform_diss(syn_image_tensor)  # 一致
-        image_tensor = self.norm_transform_diss(image_tensor)  # 基本一致
-        self.valid(image_tensor, "vgg_diff_image_tensor.npy")
-        self.valid(syn_image_tensor, "vgg_diff_syn_image_tensor.npy")
+        # 5 diss image pytorch input2
+        image_tensor3 = self.pytorch_resize_totensor(img, size=(256, 512), mul=1, interpolation=Image.NEAREST)
+
+        # 4 diss
+        syn_image_tensor = self.norm_transform_diss(syn_image_tensor).unsqueeze(0).cuda()
+        # 4 vgg_diff
+        syn_image_tensor1 = self.norm_transform_diss(syn_image_tensor1).unsqueeze(0).cuda()
+        # 5 diss
+        # image_tensor = self.norm_transform_diss(image_tensor).unsqueeze(0).cuda()
+        # 5 vgg_diff
+        image_tensor1 = self.norm_transform_diss(image_tensor1).unsqueeze(0).cuda()
+        b2 = time()
+        print("vgg_diff preprocess resize norm {} s".format(b2 - b1))
+        print("vgg_diff preprocess total {} s".format(b2 - b0))
         t5 = time()
+        # np.save("vgg_diff_image_tensor.npy", image_tensor.cpu().numpy())
+        # np.save("vgg_diff_syn_image_tensor.npy", syn_image_tensor.cpu().numpy())
+        # self.valid(image_tensor1, "vgg_diff_image_tensor.npy")
         print("img vgg_diff preprocess {} s".format(t5 - t4))
+
         # get softmax difference
-        perceptual_diff = self.vgg_diff(image_tensor, syn_image_tensor)  # shape [B, 1, 256, 512]  一致
-        self.valid(perceptual_diff, "vgg_diff_perceptual_diff.npy")
+        perceptual_diff = self.vgg_diff(image_tensor1, syn_image_tensor1)  # shape [B, 1, 256, 512]
+        # np.save("vgg_diff_perceptual_diff.npy", perceptual_diff.cpu().numpy())
         t6 = time()
         print("img vgg_diff {} s".format(t6 - t5))
-        perceptual_diff_r = perceptual_diff.reshape(B, -1)
-        min_v = torch.min(perceptual_diff_r, dim=1)[0]
-        max_v = torch.max(perceptual_diff_r, dim=1)[0]
-        perceptual_diff = (perceptual_diff - min_v) / (max_v - min_v)
+        min_v = torch.min(perceptual_diff.squeeze())
+        max_v = torch.max(perceptual_diff.squeeze())
+        perceptual_diff = (perceptual_diff.squeeze() - min_v) / (max_v - min_v)
         perceptual_diff *= 255
-        perceptual_diff = perceptual_diff.type(torch.uint8)
-
+        perceptual_diff1 = perceptual_diff.cpu().numpy()
+        # 6 perceptual_diff origin
+        perceptual_diff = Image.fromarray(perceptual_diff1.astype(np.uint8))
         # finish transformation
-        perceptual_diff_tensor = self.base_transforms_diss_resize(perceptual_diff)
-        perceptual_diff_tensor = self.to_tensor(perceptual_diff_tensor)
+        # perceptual_diff_tensor = self.base_transforms_diss(perceptual_diff).unsqueeze(0).cuda()
+        # 6 perceptual_diff pytorch
+        perceptual_diff_tensor = self.pytorch_resize_totensor(perceptual_diff1, size=(256, 512), mul=1,
+                                                              interpolation=Image.NEAREST)
+        perceptual_diff_tensor = perceptual_diff_tensor.unsqueeze(0).cuda()
 
-        entropy_tensor = self.base_transforms_diss_resize(entropy_img)
-        entropy_tensor = self.to_tensor(entropy_tensor)
+        # 7 entropy origin
+        # entropy_tensor = self.base_transforms_diss(entropy_img).unsqueeze(0).cuda()
+        # 7 entropy pytorch
+        entropy_tensor = self.pytorch_resize_totensor(entropy, size=(256, 512), mul=1,
+                                                      interpolation=Image.NEAREST)
+        entropy_tensor = entropy_tensor.unsqueeze(0).cuda()
 
-        distance_tensor = self.base_transforms_diss_resize(distance)
-        distance_tensor = self.to_tensor(distance_tensor)
+        # 8 distance origin
+        # distance_tensor = self.base_transforms_diss(distance_img).unsqueeze(0).cuda()
+        # 9 entropy pytorch
+        distance_tensor = self.pytorch_resize_totensor(distance, size=(256, 512), mul=1,
+                                                       interpolation=Image.NEAREST)
+        distance_tensor = distance_tensor.unsqueeze(0).cuda()
 
         # hot encode semantic map
         semantic_tensor[semantic_tensor == 255] = 20  # 'ignore label is 20'
-        semantic_tensor = self.one_hot_encoding(semantic_tensor, 20)
+        semantic_tensor = one_hot_encoding(semantic_tensor, 20).unsqueeze(0).cuda()
         t7 = time()
-        self.valid(semantic_tensor, "diss_model_semantic_tensor.npy")
-        self.valid(entropy_tensor,
-                   "diss_model_entropy_tensor.npy")  # tensor(19681., device='cuda:0') torch.Size([1, 1, 256, 512]) tensor(0.1502, device='cuda:0') tensor(0.3451, device='cuda:0')
-        self.valid(perceptual_diff_tensor,
-                   "diss_model_perceptual_diff_tensor.npy")  # tensor(7647., device='cuda:0') torch.Size([1, 1, 256, 512]) tensor(0.0583, device='cuda:0') tensor(0.3608, device='cuda:0')
-        self.valid(distance_tensor,
-                   "diss_model_distance_tensor.npy")  # tensor(14184., device='cuda:0') torch.Size([1, 1, 256, 512]) tensor(0.1082, device='cuda:0') tensor(0.8000, device='cuda:0')
         print("img diss_model prerocess {} s".format(t7 - t6))
         # run dissimilarity
+        # np.save("diss_model_semantic_tensor.npy", semantic_tensor.cpu().numpy())
+        # np.save("diss_model_entropy_tensor.npy", entropy_tensor.cpu().numpy())
+        # np.save("diss_model_perceptual_diff_tensor.npy", perceptual_diff_tensor.cpu().numpy())
+        # np.save("diss_model_distance_tensor.npy", distance_tensor.cpu().numpy())
         with torch.no_grad():
             if self.prior:
-                diss_pred = self.diss_model(image_tensor, syn_image_tensor, semantic_tensor, entropy_tensor,
-                                            perceptual_diff_tensor, distance_tensor)
+                diss_pred = F.softmax(
+                    self.diss_model(image_tensor1, syn_image_tensor1, semantic_tensor, entropy_tensor,
+                                    perceptual_diff_tensor,
+                                    distance_tensor), dim=1)
             else:
-                diss_pred = self.diss_model(image_tensor, syn_image_tensor, semantic_tensor)
+                diss_pred = F.softmax(self.diss_model(image_tensor, syn_image_tensor, semantic_tensor), dim=1)
         t8 = time()
         print("img diss_model {} s".format(t8 - t7))
-        diss_pred = F.softmax(diss_pred, dim=1)
+        diss_pred = diss_pred.cpu().numpy()
 
-        # # do ensemble if necessary
+        # do ensemble if necessary
         if self.ensemble:
-            diss_pred = diss_pred[:, 1, :, :] * 0.75 + entropy_tensor * 0.25
+            diss_pred = diss_pred[:, 1, :, :] * 0.75 + entropy_tensor.cpu().numpy() * 0.25
         else:
             diss_pred = diss_pred[:, 1, :, :]
-        self.valid(diss_pred, "diss_pred_resize_bef.npy")
-        diss_pred = diss_pred * 255
-
-        seg_final = seg_final.type(torch.uint8)
-        diss_pred = diss_pred.type(torch.uint8)
-
-        resize = transforms.Resize(size=(origin_h, origin_w), interpolation=Image.NEAREST)
-        seg_final = resize(seg_final)
-        diss_pred = resize(diss_pred)
-        self.valid(seg_final, "seg_img.npy")
-        self.valid(diss_pred, "diss_pred_resize.npy")
         t9 = time()
-        print("img diss_model postprocess {} s".format(t9 - t8))
+        # np.save("diss_pred.npy", diss_pred)
         print("total {} s".format(t9 - t0))
-
-        diss_pred_img = Image.fromarray(diss_pred.squeeze().cpu().numpy()).resize((image_og_w, image_og_h))
+        # Resize outputs to original input image size
+        np.save("diss_pred_resize_bef.npy", diss_pred)
+        diss_pred = Image.fromarray(diss_pred.squeeze() * 255).resize((image_og_w, image_og_h))
         # np.save("diss_pred_resize.npy", np.array(diss_pred))
-        seg_img = Image.fromarray(semantic.squeeze().cpu().numpy()).resize((image_og_w, image_og_h))
+        seg_img = semantic.resize((image_og_w, image_og_h))
         # np.save("seg_img.npy", np.array(seg_img))
-        entropy = Image.fromarray(entropy_img.squeeze().cpu().numpy()).resize((image_og_w, image_og_h))
-        perceptual_diff = Image.fromarray(perceptual_diff.squeeze().cpu().numpy()).resize((image_og_w, image_og_h))
-        distance = Image.fromarray(distance.squeeze().cpu().numpy()).resize((image_og_w, image_og_h))
-        synthesis = Image.fromarray(synthesis_final_img.permute(0, 2, 3, 1).squeeze().cpu().numpy()).resize(
-            (image_og_w, image_og_h))
+        entropy = entropy_img.resize((image_og_w, image_og_h))
+        perceptual_diff = perceptual_diff.resize((image_og_w, image_og_h))
+        distance = entropy.resize((image_og_w, image_og_h))
+        synthesis = synthesis_final_img.resize((image_og_w, image_og_h))
+        result = postprocessing(np.array(seg_img)[None, :], np.array(diss_pred)[None, :], 19)
+        img_box = draw_total_box(np.array(image)[:, :, ::-1], result[0], debug=True)
+        out = {'anomaly_map': diss_pred, 'segmentation': seg_img, 'synthesis': synthesis,
+               'softmax_entropy': entropy, 'perceptual_diff': perceptual_diff, 'softmax_distance': distance,
+               "box": img_box}
 
-        # result = postprocessing(np.array(seg_img)[None, :], np.array(diss_pred)[None, :], 19)
-        # draw_total_box(np.array(image)[:, :, ::-1], result[0], debug=True)
-        out = {'anomaly_map': diss_pred_img, 'segmentation': seg_img, 'synthesis': synthesis,
-               'softmax_entropy': entropy, 'perceptual_diff': perceptual_diff, 'softmax_distance': distance}
-        return seg_final, diss_pred, out
-        # return seg_final, diss_pred
+        return out
 
     def set_seeds(self, seed=0):
         # set seeds for reproducibility
@@ -352,6 +432,10 @@ class RoadAnomalyDetector(nn.Module):
             [transforms.Resize(size=(256, 512), interpolation=Image.NEAREST)])
         # self.transform_semantic_resize = transforms.Compose(
         #     [transforms.Resize(size=(256, 512), interpolation=Image.BILINEAR, antialias=True)])
+        self.transform_image_syn = transforms.Compose(
+            [transforms.Resize(size=(256, 512), interpolation=Image.BICUBIC), transforms.ToTensor(),
+             transforms.Normalize((0.5, 0.5, 0.5),
+                                  (0.5, 0.5, 0.5))])
         self.transform_image_syn_resize = transforms.Resize(size=(256, 512), interpolation=Image.BICUBIC)
         # self.transform_image_syn_resize = transforms.Resize(size=(256, 512), interpolation=Image.BILINEAR,
         #                                                     antialias=True)
@@ -359,10 +443,13 @@ class RoadAnomalyDetector(nn.Module):
 
         # dissimilarity pre-process
         self.vgg_diff = VGG19_difference().cuda()
+        self.base_transforms_diss = transforms.Compose(
+            [transforms.Resize(size=(256, 512), interpolation=Image.NEAREST), transforms.ToTensor()])
         self.base_transforms_diss_resize = transforms.Compose(
             [transforms.Resize(size=(256, 512), interpolation=Image.NEAREST)])
         self.norm_transform_diss = transforms.Compose(
             [transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])  # imageNet normamlization
+        self.to_pil = ToPILImage()
 
 
 palette = [128, 64, 128, 244, 35, 232, 70, 70, 70, 102, 102, 156, 190, 153, 153,
@@ -399,6 +486,7 @@ synthesis_path = os.path.join(save_folder, 'synthesis')
 entropy_path = os.path.join(save_folder, 'entropy')
 distance_path = os.path.join(save_folder, 'distance')
 perceptual_diff_path = os.path.join(save_folder, 'perceptual_diff')
+box_path = os.path.join(save_folder, 'box')
 
 os.makedirs(semantic_path, exist_ok=True)
 os.makedirs(anomaly_path, exist_ok=True)
@@ -406,6 +494,7 @@ os.makedirs(synthesis_path, exist_ok=True)
 os.makedirs(entropy_path, exist_ok=True)
 os.makedirs(distance_path, exist_ok=True)
 os.makedirs(perceptual_diff_path, exist_ok=True)
+os.makedirs(box_path, exist_ok=True)
 
 if __name__ == '__main__':
     input_shape = [3, 512, 1024]
@@ -432,11 +521,11 @@ if __name__ == '__main__':
         print("img to cuda {} s".format(t1 - t0))
         results = detector(img, image_og_h, image_og_w)
         prediction, anomaly_score, results = results
-        prediction = prediction.cpu().numpy()
-        anomaly_score = anomaly_score.cpu().numpy()
-        result = postprocessing(prediction, anomaly_score)
+        # prediction = prediction.cpu().numpy()
+        # anomaly_score = anomaly_score.cpu().numpy()
+        # result = postprocessing(prediction, anomaly_score)
         print("spend total {} s".format(time() - t0))
-        draw_total_box(img_path, result[0], debug=True)
+        # draw_total_box(img_path, result[0], debug=True)
 
         # img = img.permute(0, 2, 3, 1).cpu().numpy().squeeze()
         anomaly_map = results['anomaly_map'].convert('RGB')
@@ -459,6 +548,9 @@ if __name__ == '__main__':
 
         perceptual_diff = results['perceptual_diff'].convert('RGB')
         perceptual_diff.save(os.path.join(perceptual_diff_path, basename))
+
+        img_box = results['box']
+        cv2.imwrite(os.path.join(box_path, basename), img_box)
 
         break
 

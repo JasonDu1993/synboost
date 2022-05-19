@@ -72,6 +72,24 @@ class RoadAnomalyDetector(nn.Module):
         one_hot = one_hot[:, :num_classes - 1, :, :]
         return one_hot
 
+    def pytorch_resize_totensor(self, x, size=(256, 512), mul=1, interpolation=Image.NEAREST, totensor=True):
+        if isinstance(x, Image.Image):
+            x = np.array(x).transpose((2, 0, 1))
+            x = torch.from_numpy(x)
+        elif isinstance(x, np.ndarray):
+            x = torch.from_numpy(x)
+        x = x.type(torch.uint8)
+        h, w = size
+
+        if x.dim() < 3:
+            x = x.unsqueeze(0)
+        transform_semantic_resize = transforms.Resize(size=(h, w), interpolation=interpolation)
+        x = transform_semantic_resize(x)
+        if totensor:
+            x = self.to_tensor(x)
+        x = x * mul
+        return x
+
     def forward(self, img, origin_h, origin_w):
         """
 
