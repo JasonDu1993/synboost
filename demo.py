@@ -1,5 +1,6 @@
 import argparse
 import os
+import cv2
 from PIL import Image
 import torch
 from estimator import AnomalyDetector
@@ -33,7 +34,8 @@ def colorize_mask(mask):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--demo_folder', type=str, default='./sample_images', help='Path to folder with images to be run.')
-parser.add_argument('--save_folder', type=str, default='./results', help='Folder to where to save the results')
+parser.add_argument('--save_folder', type=str, default='./results/total',
+                    help='Folder to where to save the results')
 opts = parser.parse_args()
 
 demo_folder = opts.demo_folder
@@ -41,7 +43,7 @@ save_folder = opts.save_folder
 logger = get_root_logger()
 images = [os.path.join(demo_folder, image) for image in os.listdir(demo_folder)]
 images = [x for x in images if os.path.isfile(x)]
-detector = AnomalyDetector(True, input_shape=(3, 512, 1024),)
+detector = AnomalyDetector(True, input_shape=(3, 512, 1024), )
 
 # Save folders
 semantic_path = os.path.join(save_folder, 'semantic')
@@ -50,6 +52,7 @@ synthesis_path = os.path.join(save_folder, 'synthesis')
 entropy_path = os.path.join(save_folder, 'entropy')
 distance_path = os.path.join(save_folder, 'distance')
 perceptual_diff_path = os.path.join(save_folder, 'perceptual_diff')
+box_path = os.path.join(save_folder, 'box')
 
 os.makedirs(semantic_path, exist_ok=True)
 os.makedirs(anomaly_path, exist_ok=True)
@@ -57,11 +60,12 @@ os.makedirs(synthesis_path, exist_ok=True)
 os.makedirs(entropy_path, exist_ok=True)
 os.makedirs(distance_path, exist_ok=True)
 os.makedirs(perceptual_diff_path, exist_ok=True)
+os.makedirs(box_path, exist_ok=True)
 
 for idx, img_path in enumerate(images):
     print("img_path:{}".format(img_path))
     basename = os.path.basename(img_path).replace('.jpg', '.png')
-    print('Evaluating image %i out of %i'%(idx+1, len(images)))
+    print('Evaluating image %i out of %i' % (idx + 1, len(images)))
     image = Image.open(img_path)
     results = detector.estimator_image(image)
 
@@ -69,21 +73,23 @@ for idx, img_path in enumerate(images):
     anomaly_map = Image.fromarray(
         np.concatenate([np.array(image), np.array(anomaly_map)], axis=1)
     )
-    anomaly_map.save(os.path.join(anomaly_path,basename))
+    anomaly_map.save(os.path.join(anomaly_path, basename))
 
     semantic_map = colorize_mask(np.array(results['segmentation']))
-    semantic_map.save(os.path.join(semantic_path,basename))
+    semantic_map.save(os.path.join(semantic_path, basename))
 
     synthesis = results['synthesis']
-    synthesis.save(os.path.join(synthesis_path,basename))
+    synthesis.save(os.path.join(synthesis_path, basename))
 
     softmax_entropy = results['softmax_entropy'].convert('RGB')
-    softmax_entropy.save(os.path.join(entropy_path,basename))
+    softmax_entropy.save(os.path.join(entropy_path, basename))
 
     softmax_distance = results['softmax_distance'].convert('RGB')
-    softmax_distance.save(os.path.join(distance_path,basename))
+    softmax_distance.save(os.path.join(distance_path, basename))
 
     perceptual_diff = results['perceptual_diff'].convert('RGB')
-    perceptual_diff.save(os.path.join(perceptual_diff_path,basename))
-    break
+    perceptual_diff.save(os.path.join(perceptual_diff_path, basename))
 
+    img_box = results['box']
+    cv2.imwrite(os.path.join(box_path, basename), img_box)
+    break
