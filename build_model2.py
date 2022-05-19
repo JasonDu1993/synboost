@@ -209,10 +209,10 @@ class RoadAnomalyDetector(nn.Module):
         # 5 diss image origin origin
         # image_tensor = self.base_transforms_diss(img)
         # 5 diss image pytorch input12
-        img2 = self.pytorch_resize_totensor(img, size=(self.h, self.w), mul=1, interpolation=Image.NEAREST,
-                                            totensor=False)
-        img2 = img2.type(torch.uint8).cpu().numpy()
-        image_tensor1 = self.pytorch_resize_totensor(img2, size=(256, 512), mul=1, interpolation=Image.NEAREST)
+        # img2 = self.pytorch_resize_totensor(img, size=(self.h, self.w), mul=1, interpolation=Image.NEAREST,
+        #                                     totensor=False)
+        # img2 = img2.type(torch.uint8).cpu().numpy()
+        image_tensor1 = self.pytorch_resize_totensor(img, size=(256, 512), mul=1, interpolation=Image.NEAREST)
 
         # 5 diss image pytorch input1
         # img1 = self.pytorch_resize_totensor(img, size=(self.h, self.w), mul=1, interpolation=Image.NEAREST,
@@ -247,12 +247,11 @@ class RoadAnomalyDetector(nn.Module):
         max_v = torch.max(perceptual_diff.squeeze())
         perceptual_diff = (perceptual_diff.squeeze() - min_v) / (max_v - min_v)
         perceptual_diff *= 255
-        perceptual_diff1 = perceptual_diff.cpu().numpy()
         # 6 perceptual_diff origin
         # finish transformation
         # perceptual_diff_tensor = self.base_transforms_diss(perceptual_diff).unsqueeze(0).cuda()
         # 6 perceptual_diff pytorch
-        perceptual_diff_tensor = self.pytorch_resize_totensor(perceptual_diff1, size=(256, 512), mul=1,
+        perceptual_diff_tensor = self.pytorch_resize_totensor(perceptual_diff, size=(256, 512), mul=1,
                                                               interpolation=Image.NEAREST)
         perceptual_diff_tensor = perceptual_diff_tensor.unsqueeze(0).cuda()
 
@@ -295,12 +294,6 @@ class RoadAnomalyDetector(nn.Module):
         semantic_tensor = one_hot_encoding(semantic_tensor, 20).unsqueeze(0).cuda()
         t7 = time()
         # 第四步：diss：三个不同的图
-        # prepare dissimilarity
-        entropy = entropy.cpu().numpy()
-        distance = distance.cpu().numpy()
-        entropy_img = Image.fromarray(entropy.astype(np.uint8).squeeze())
-        distance_img = Image.fromarray(distance.astype(np.uint8).squeeze())
-        semantic = Image.fromarray((seg_final).astype(np.uint8))
         print("img diss_model prerocess {} s".format(t7 - t6))
         # run dissimilarity
         # np.save("diss_model_semantic_tensor.npy", semantic_tensor.cpu().numpy())
@@ -317,31 +310,42 @@ class RoadAnomalyDetector(nn.Module):
                 diss_pred = F.softmax(self.diss_model(image_tensor1, syn_image_tensor1, semantic_tensor), dim=1)
         t8 = time()
         print("img diss_model {} s".format(t8 - t7))
-        diss_pred = diss_pred.cpu().numpy()
 
         # do ensemble if necessary
         if self.ensemble:
-            diss_pred = diss_pred[:, 1, :, :] * 0.75 + entropy_tensor.cpu().numpy() * 0.25
+            diss_pred = diss_pred[:, 1, :, :] * 0.75 + entropy_tensor * 0.25
         else:
             diss_pred = diss_pred[:, 1, :, :]
+        diss_pred = diss_pred * 255
         t9 = time()
         # np.save("diss_pred.npy", diss_pred)
         print("total {} s".format(t9 - t0))
 
-        # 为了可视化
-        image_numpy = (np.transpose(generated.squeeze().cpu().numpy(), (1, 2, 0)) + 1) / 2.0
-        synthesis_final_img = Image.fromarray((image_numpy * 255).astype(np.uint8))
-        # Resize outputs to original input image size
-        np.save("diss_pred_resize_bef.npy", diss_pred)
-        diss_pred = Image.fromarray(diss_pred.squeeze() * 255).resize((image_og_w, image_og_h))
+        # 可视化diss_pred
+        diss_pred_img = diss_pred[0].squeeze(0).cpu().numpy().astype(np.uint8)
+        diss_pred = Image.fromarray(diss_pred_img).resize((image_og_w, image_og_h))
         # np.save("diss_pred_resize.npy", np.array(diss_pred))
+        # 可视化分割图
+        semantic = Image.fromarray(seg_final.astype(np.uint8))
         seg_img = semantic.resize((image_og_w, image_og_h))
         # np.save("seg_img.npy", np.array(seg_img))
+        # 可视化合成图
+        image_numpy = (np.transpose(generated.squeeze().cpu().numpy(), (1, 2, 0)) + 1) / 2.0 * 255
+        synthesis_final_img = Image.fromarray(image_numpy.astype(np.uint8))
+        synthesis = synthesis_final_img.resize((image_og_w, image_og_h))
+        # 可视化entropy
+        entropy = entropy.cpu().numpy()
+        entropy_img = Image.fromarray(entropy.astype(np.uint8).squeeze())
         entropy = entropy_img.resize((image_og_w, image_og_h))
+        # 可视化perceptual_diff
+        perceptual_diff1 = perceptual_diff.cpu().numpy()
         perceptual_diff = Image.fromarray(perceptual_diff1.astype(np.uint8))
         perceptual_diff = perceptual_diff.resize((image_og_w, image_og_h))
-        distance = entropy.resize((image_og_w, image_og_h))
-        synthesis = synthesis_final_img.resize((image_og_w, image_og_h))
+        # 可视化距离
+        distance = distance.cpu().numpy()
+        distance_img = Image.fromarray(distance.astype(np.uint8).squeeze())
+        distance = distance_img.resize((image_og_w, image_og_h))
+
         result = postprocessing(np.array(seg_img)[None, :], np.array(diss_pred)[None, :], 19)
         img_box = draw_total_box(np.array(image), result[0], debug=True)
         out = {'anomaly_map': diss_pred, 'segmentation': seg_img, 'synthesis': synthesis,
