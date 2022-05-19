@@ -181,8 +181,6 @@ class AnomalyDetector():
         t4 = time()
         print("img syn_net {} s".format(t4 - t3))
         b0 = time()
-        b1 = time()
-        print("vgg_diff preprocess toimg {} s".format(b1 - b0))
 
         # get initial transformation
         # 第三步：vggdiff: 合成图，也是第四步的输入
@@ -193,6 +191,8 @@ class AnomalyDetector():
         # syn_image_tensor = self.norm_transform_diss(syn_image_tensor).unsqueeze(0).cuda()
         # 4 vgg_diff
         syn_image_tensor1 = self.norm_transform_diss(syn_image_tensor1).unsqueeze(0).cuda()
+        b1 = time()
+        print("vgg_diff preprocess synimg resize norm{} s".format(b1 - b0))
 
         # 第三步：vggdiff: 输入原图，也是第四步的输入
         # 5 diss image origin origin
@@ -218,7 +218,7 @@ class AnomalyDetector():
         # 5 vgg_diff
         image_tensor1 = self.norm_transform_diss(image_tensor1).unsqueeze(0).cuda()
         b2 = time()
-        print("vgg_diff preprocess resize norm {} s".format(b2 - b1))
+        print("vgg_diff preprocess inputimg resize norm {} s".format(b2 - b1))
         print("vgg_diff preprocess total {} s".format(b2 - b0))
         t5 = time()
         # np.save("vgg_diff_image_tensor.npy", image_tensor.cpu().numpy())
