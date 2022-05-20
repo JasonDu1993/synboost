@@ -224,7 +224,11 @@ def load_network(net, label, epoch, opt):
     #weights = {k: v for k, v in weights.items() if k in net.state_dict()}
     #torch.save(weights, 'checkpoints/new.pth')
     #pdb.set_trace()
-    net.load_state_dict(weights)
+    rt = net.load_state_dict(weights, strict=False)
+    if rt.missing_keys:
+        print('Missing keys when loading states {}'.format(rt.missing_keys))
+    if rt.unexpected_keys:
+        print('Warning: Keys dismatch when loading backbone states:\n' + str(rt))
     return net
 
 

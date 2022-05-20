@@ -58,6 +58,8 @@ class SPADE(nn.Module):
             self.param_free_norm = nn.SyncBatchNorm(norm_nc, affine=False)
         else:
             self.param_free_norm = nn.BatchNorm2d(norm_nc, affine=False)
+            self.param_free_norm.weight = nn.Parameter(torch.ones(norm_nc))
+            self.param_free_norm.bias = nn.Parameter(torch.zeros(norm_nc))
 
         # The dimension of the intermediate embedding space. Yes, hardcoded.
         nhidden = 128 

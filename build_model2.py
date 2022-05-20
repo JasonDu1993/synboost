@@ -39,7 +39,7 @@ from time import time
 
 
 class RoadAnomalyDetector(nn.Module):
-    def __init__(self, ours=True, input_shape=(3, 1024, 2048), seed=0, fishyscapes_wrapper=True, vis=True):
+    def __init__(self, ours=True, input_shape=(3, 512, 1024), seed=0, fishyscapes_wrapper=True, vis=False):
         super().__init__()
         self.set_seeds(seed)
 
@@ -118,7 +118,7 @@ class RoadAnomalyDetector(nn.Module):
         mean_std = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         seg_norm = transforms.Normalize(*mean_std)
         img_tensor = seg_norm(img_tensor)
-        self.valid(img_tensor, "image.npy")
+        # self.valid(img_tensor, "image.npy")
         # np.save("image.npy", img_tensor.unsqueeze(0).cuda().cpu().numpy())
         t1 = time()
         print("img trans {} s".format(t1 - t0))
@@ -365,7 +365,7 @@ class RoadAnomalyDetector(nn.Module):
         assert_and_infer_cfg(self.opt, train_mode=False)
         self.opt.dataset_cls = cityscapes
         net = network.get_net(self.opt, criterion=None)
-        net = torch.nn.DataParallel(net).cuda()
+        # net = torch.nn.DataParallel(net).cuda()
         print('Segmentation Net Built.')
         snapshot = os.path.join(os.getcwd(), os.path.dirname(__file__), self.opt.snapshot)
         self.seg_net, _ = restore_snapshot(net, optimizer=None, snapshot=snapshot,
@@ -403,10 +403,20 @@ class RoadAnomalyDetector(nn.Module):
 
         print('Dissimilarity Net Built.')
         save_folder = os.path.join(os.getcwd(), os.path.dirname(__file__), config_diss['save_folder'])
-        model_path = os.path.join(save_folder,
-                                  '%s_net_%s.pth' % (config_diss['which_epoch'], config_diss['experiment_name']))
+        if torch.__version__ <= "1.4.0":
+            model_path = os.path.join(save_folder,
+                                      '%s_net_%s.torch140.pth' % (
+                                          config_diss['which_epoch'], config_diss['experiment_name']))
+        else:
+            model_path = os.path.join(save_folder,
+                                      '%s_net_%s.pth' % (config_diss['which_epoch'], config_diss['experiment_name']))
+        print("diss model path: {}".format(model_path))
         model_weights = torch.load(model_path)
-        self.diss_model.load_state_dict(model_weights)
+        rt = self.diss_model.load_state_dict(model_weights, strict=False)
+        if rt.missing_keys:
+            print('Missing keys when loading states {}'.format(rt.missing_keys))
+        if rt.unexpected_keys:
+            print('Warning: Keys dismatch when loading backbone states:\n' + str(rt))
         self.diss_model.eval()
         print('Dissimilarity Net Restored')
 
@@ -514,7 +524,7 @@ if __name__ == '__main__':
     input_shape = [3, 512, 1024]
     # input_shape = [3, 1024, 2048]
     root = "./sample_images"
-    vis = True
+    vis = False
     detector = RoadAnomalyDetector(True, input_shape, vis=vis)
     gpu = 0
     detector.to("cuda:{}".format(gpu))
@@ -602,9 +612,17 @@ if __name__ == '__main__':
         else:
             prediction, anomaly_score = detector(img)
 
-            prediction = prediction.cpu().numpy()  # 还需要resize到图片大小
-            anomaly_score = anomaly_score.cpu().numpy()  # 还需要resize到图片大小
-            result = postprocessing(prediction, anomaly_score)
+            # 可视化diss_pred
+            diss_pred_img = anomaly_score[0].cpu().numpy().astype(np.uint8)
+            diss_pred = Image.fromarray(diss_pred_img).resize((image_og_w, image_og_h))
+            # np.save("diss_pred_resize.npy", np.array(diss_pred))
+            # 可视化分割图
+            seg_final_img = prediction[0].cpu().numpy().astype(np.uint8)
+            semantic = Image.fromarray(seg_final_img)
+            seg_img = semantic.resize((image_og_w, image_og_h))
+
+            result = postprocessing(np.array(seg_img)[None, :], np.array(diss_pred)[None, :], 19)
+            img_box = draw_total_box(np.array(image), result[0], debug=True)
             print("spend total {} s".format(time() - t0))
             draw_total_box(img_path, result[0], debug=True)
         break

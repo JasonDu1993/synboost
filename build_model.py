@@ -300,7 +300,7 @@ class RoadAnomalyDetector(nn.Module):
         assert_and_infer_cfg(self.opt, train_mode=False)
         self.opt.dataset_cls = cityscapes
         net = network.get_net(self.opt, criterion=None)
-        net = torch.nn.DataParallel(net).cuda()
+        # net = torch.nn.DataParallel(net).cuda()
         print('Segmentation Net Built.')
         snapshot = os.path.join(os.getcwd(), os.path.dirname(__file__), self.opt.snapshot)
         self.seg_net, _ = restore_snapshot(net, optimizer=None, snapshot=snapshot,

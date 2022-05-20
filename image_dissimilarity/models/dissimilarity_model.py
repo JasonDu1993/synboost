@@ -296,10 +296,13 @@ class DissimNetPrior(nn.Module):
 
         # Run Decoder
         x = self.conv1(layer4_cat)
+        print("spade", self.spade)
         if self.spade == 'decoder' or self.spade == 'both':
             x = self.conv2(x, semantic_img)
         else:
             x = self.conv2(x)
+        # logits = x
+        # """
         x = self.tconv1(x)
 
         x = torch.cat((x, layer3_cat), dim=1)
@@ -325,6 +328,7 @@ class DissimNetPrior(nn.Module):
         else:
             x = self.conv6(x)
         logits = self.conv11(x)
+        # """
         return logits
 
 

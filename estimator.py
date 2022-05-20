@@ -104,7 +104,6 @@ class AnomalyDetector():
         mean_std = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         seg_norm = transforms.Normalize(*mean_std)
         img_tensor = seg_norm(img_tensor)
-        self.valid(img_tensor, "image.npy")
         # np.save("image.npy", img_tensor.unsqueeze(0).cuda().cpu().numpy())
         t1 = time()
         print("img trans {} s".format(t1 - t0))
@@ -456,7 +455,7 @@ class AnomalyDetector():
         assert_and_infer_cfg(self.opt, train_mode=False)
         self.opt.dataset_cls = cityscapes
         net = network.get_net(self.opt, criterion=None)
-        net = torch.nn.DataParallel(net).cuda()
+        # net = torch.nn.DataParallel(net).cuda()
         print('Segmentation Net Built.')
         snapshot = os.path.join(os.getcwd(), os.path.dirname(__file__), self.opt.snapshot)
         self.seg_net, _ = restore_snapshot(net, optimizer=None, snapshot=snapshot,

@@ -34,7 +34,7 @@ def colorize_mask(mask):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--demo_folder', type=str, default='./sample_images', help='Path to folder with images to be run.')
-parser.add_argument('--save_folder', type=str, default='./results/total',
+parser.add_argument('--save_folder', type=str, default='./results/total1',
                     help='Folder to where to save the results')
 opts = parser.parse_args()
 

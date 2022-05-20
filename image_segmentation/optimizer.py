@@ -6,6 +6,8 @@ import logging
 import torch
 from torch import optim
 from image_segmentation.config import cfg
+from collections import OrderedDict
+import torch.nn as nn
 
 
 def get_optimizer(args, net):
@@ -39,10 +41,10 @@ def get_optimizer(args, net):
         rescale_thresh = cfg.REDUCE_BORDER_EPOCH
         scale_value = args.rescale
         lambda1 = lambda epoch: \
-             math.pow(1 - epoch / args.max_epoch,
-                      args.poly_exp) if epoch < rescale_thresh else scale_value * math.pow(
-                          1 - (epoch - rescale_thresh) / (args.max_epoch - rescale_thresh),
-                          args.repoly)
+            math.pow(1 - epoch / args.max_epoch,
+                     args.poly_exp) if epoch < rescale_thresh else scale_value * math.pow(
+                1 - (epoch - rescale_thresh) / (args.max_epoch - rescale_thresh),
+                args.repoly)
         scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
     elif args.lr_schedule == 'poly':
         lambda1 = lambda epoch: math.pow(1 - epoch / args.max_epoch, args.poly_exp)
@@ -85,13 +87,22 @@ def forgiving_state_restore(net, loaded_dict):
     Because we want to use models that were trained off a different
     number of classes.
     """
-    net_state_dict = net.state_dict()
-    new_loaded_dict = {}
-    for k in net_state_dict:
-        if k in loaded_dict and net_state_dict[k].size() == loaded_dict[k].size():
-            new_loaded_dict[k] = loaded_dict[k]
-        else:
-            logging.info("Skipped loading parameter %s", k)
-    net_state_dict.update(new_loaded_dict)
-    net.load_state_dict(net_state_dict)
+    if isinstance(net, nn.DataParallel) or isinstance(net, nn.parallel.DistributedDataParallel) or \
+            isinstance(net, nn.parallel.DataParallel):
+        net = net.module
+    new_loaded_dict = loaded_dict
+    is_ddp = all([('module.' in k) for k in loaded_dict.keys()])
+    if is_ddp:
+        new_weights = OrderedDict()
+        for k, v in loaded_dict.items():
+            assert k.count('module.') == 1
+            new_k = k.replace('module.', '')
+            new_weights[new_k] = v
+        new_loaded_dict = new_weights
+    # net_state_dict.update(new_loaded_dict)
+    rt = net.load_state_dict(new_loaded_dict, strict=False)
+    if rt.missing_keys:
+        print('Missing keys when loading states {}'.format(rt.missing_keys))
+    if rt.unexpected_keys:
+        print('Warning: Keys dismatch when loading backbone states:\n' + str(rt))
     return net

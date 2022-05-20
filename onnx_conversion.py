@@ -32,7 +32,7 @@ def remove_all_spectral_norm(item):
     if isinstance(item, nn.Module):
         try:
             nn.utils.remove_spectral_norm(item)
-        except Exception:
+        except Exception as e:
             pass
         
         for child in item.children():
@@ -121,26 +121,34 @@ def convert_synthesis_model(dataroot = '/zhoudu/workspaces/road_obstacles/sample
     remove_all_spectral_norm(model)
     # Input to the model
     batch_size = 1
-    for i, data_i in enumerate(dataloader):
-        label = data_i['label'].long()
-        instance = data_i['instance']
-        image = data_i['image']
-        break
+    # for i, data_i in enumerate(dataloader):
+    #     label = data_i['label'].long()
+    #     instance = data_i['instance']
+    #     image = data_i['image']
+    #     break
+    #
+    # # create one-hot label map
+    # label_map = label
+    # bs, _, h, w = label_map.size()
+    # nc = opt.label_nc + 1 if opt.contain_dontcare_label \
+    #     else opt.label_nc
+    # FloatTensor = torch.FloatTensor
+    #
+    # input_label = FloatTensor(bs, nc, h, w).zero_()
+    # input_semantics = input_label.scatter_(1, label_map, 1.0)
+    #
+    # inst_map = instance
+    # instance_edge_map = get_edges(inst_map)
+    # input_semantics = torch.cat((input_semantics, instance_edge_map), dim=1)
+    c = 1
+    h=256
+    w=512
+    label = torch.randn(1, c, h, w, requires_grad=False).cuda()
+    instance_tensor = label.clone()
+    image_tensor = torch.randn(1, c, h, w, requires_grad=False).cuda()
 
-    # create one-hot label map
-    label_map = label
-    bs, _, h, w = label_map.size()
-    nc = opt.label_nc + 1 if opt.contain_dontcare_label \
-        else opt.label_nc
-    FloatTensor = torch.FloatTensor
-    
-    input_label = FloatTensor(bs, nc, h, w).zero_()
-    input_semantics = input_label.scatter_(1, label_map, 1.0)
-
-    inst_map = instance
-    instance_edge_map = get_edges(inst_map)
-    input_semantics = torch.cat((input_semantics, instance_edge_map), dim=1)
-
+    data_i = {'label': label, 'instance': instance_tensor,
+                 'image': image_tensor}
     torch_out = model(data_i, mode='inference')
     
     # Export the model
@@ -314,7 +322,7 @@ def convert_dissimilarity_model(
 if __name__ == '__main__':
     # convert_segmentation_model()
     print('Segmentation mode converted.')
-    # convert_synthesis_model()
+    convert_synthesis_model()
     print('Synthesis mode converted.')
-    convert_dissimilarity_model('./image_dissimilarity/configs/test/road_anomaly_configuration.yaml')
+    # convert_dissimilarity_model('./image_dissimilarity/configs/test/road_anomaly_configuration.yaml')
     print('Dissimilarity model converted.')

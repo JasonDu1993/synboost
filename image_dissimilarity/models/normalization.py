@@ -1,4 +1,5 @@
 # CODE FROM NVIDIA Segmentation repositories
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -15,6 +16,8 @@ class SPADE(nn.Module):
         
         ks = 3
         self.param_free_norm = nn.InstanceNorm2d(norm_nc, affine=False)
+        self.param_free_norm.weight = nn.Parameter(torch.ones(norm_nc))
+        self.param_free_norm.bias = nn.Parameter(torch.zeros(norm_nc))
         
         # The dimension of the intermediate embedding space. Yes, hardcoded.
         nhidden = 128
@@ -29,7 +32,7 @@ class SPADE(nn.Module):
     def forward(self, x, segmap):
         # Part 1. generate parameter-free normalized activations
         normalized = self.param_free_norm(x)
-        
+        # normalized = x
         # Part 2. produce scaling and bias conditioned on semantic map
         if x.size()[2] != segmap.size()[2]:
             segmap = F.interpolate(segmap, size=x.size()[2:], mode='nearest')

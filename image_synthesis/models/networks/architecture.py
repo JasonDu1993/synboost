@@ -12,6 +12,7 @@ from models.networks.normalization import SPADE
 from models.networks.condconv import DepthConv
 import pdb
 
+
 class DepthsepCCBlock(nn.Module):
     def __init__(self, fin, fout, opt, semantic_nc):
         super().__init__()
@@ -23,24 +24,24 @@ class DepthsepCCBlock(nn.Module):
         nhidden = 128
         self.weight_channels = fmiddle * 9
         self.gen_weights1 = nn.Sequential(
-                    nn.Conv2d(semantic_nc, nhidden, kernel_size=3, padding=1), 
-                    nn.ReLU(), 
-                    nn.Conv2d(nhidden, fin*9, kernel_size=3, padding=1))
+            nn.Conv2d(semantic_nc, nhidden, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(nhidden, fin * 9, kernel_size=3, padding=1))
         self.gen_weights2 = nn.Sequential(
-                    nn.Conv2d(semantic_nc, nhidden, kernel_size=3, padding=1), 
-                    nn.ReLU(), 
-                    nn.Conv2d(nhidden, fout*9, kernel_size=3, padding=1))
+            nn.Conv2d(semantic_nc, nhidden, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(nhidden, fout * 9, kernel_size=3, padding=1))
 
         self.gen_se_weights1 = nn.Sequential(
-                    nn.Conv2d(semantic_nc, nhidden, kernel_size=3, padding=1), 
-                    nn.ReLU(), 
-                    nn.Conv2d(nhidden, fmiddle, kernel_size=3, padding=1), 
-                    nn.Sigmoid())
+            nn.Conv2d(semantic_nc, nhidden, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(nhidden, fmiddle, kernel_size=3, padding=1),
+            nn.Sigmoid())
         self.gen_se_weights2 = nn.Sequential(
-                    nn.Conv2d(semantic_nc, nhidden, kernel_size=3, padding=1), 
-                    nn.ReLU(), 
-                    nn.Conv2d(nhidden, fout, kernel_size=3, padding=1), 
-                    nn.Sigmoid())
+            nn.Conv2d(semantic_nc, nhidden, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(nhidden, fout, kernel_size=3, padding=1),
+            nn.Sigmoid())
 
         # create conv layers
         if opt.mpdist:
@@ -57,7 +58,7 @@ class DepthsepCCBlock(nn.Module):
         if self.learned_shortcut:
             self.conv_s = spectral_norm(nn.Conv2d(fin, fout, kernel_size=1, bias=False))
             self.norm_s = SPADE(fin, semantic_nc, opt)
-        
+
     def forward(self, x, seg):
 
         # predict weight for conditional convolution
@@ -70,7 +71,7 @@ class DepthsepCCBlock(nn.Module):
         x_s = self.shortcut(x, segmap)
 
         dx = self.norm_1(x)
-        dx = self.conv_0(dx, conv_weights1) 
+        dx = self.conv_0(dx, conv_weights1)
         dx = self.conv_1(dx)
         dx = torch.mul(dx, se_weights1)
         dx = self.actvn(dx)
@@ -94,6 +95,7 @@ class DepthsepCCBlock(nn.Module):
     def actvn(self, x):
         return F.leaky_relu(x, 2e-1)
 
+
 ## ResNet block that uses SPADE.
 ## It differs from the ResNet block of pix2pixHD in that
 ## it takes in the segmentation map as input, learns the skip connection if necessary,
@@ -108,7 +110,6 @@ class SPADEResnetBlock(nn.Module):
         self.learned_shortcut = (fin != fout)
         fmiddle = min(fin, fout)
 
-
         # create conv layers
         self.conv_0 = nn.Conv2d(fin, fmiddle, kernel_size=3, padding=1)
         self.conv_1 = nn.Conv2d(fmiddle, fout, kernel_size=3, padding=1)
@@ -121,7 +122,7 @@ class SPADEResnetBlock(nn.Module):
             self.conv_1 = spectral_norm(self.conv_1)
             if self.learned_shortcut:
                 self.conv_s = spectral_norm(self.conv_s)
-        
+
         # define normalization layers
         spade_config_str = opt.norm_G.replace('spectral', '')
         self.norm_0 = SPADE(fin, semantic_nc)
@@ -156,7 +157,7 @@ class SPADEResnetBlock(nn.Module):
 class VGG19(torch.nn.Module):
     def __init__(self, requires_grad=False, local_pretrained_path='checkpoints/vgg19.pth'):
         super().__init__()
-        #vgg_pretrained_features = torchvision.models.vgg19(pretrained=True).features
+        # vgg_pretrained_features = torchvision.models.vgg19(pretrained=True).features
         model = torchvision.models.vgg19()
         model.load_state_dict(torch.load(local_pretrained_path))
         vgg_pretrained_features = model.features
@@ -182,12 +183,9 @@ class VGG19(torch.nn.Module):
 
     def forward(self, X):
         h_relu1 = self.slice1(X)
-        h_relu2 = self.slice2(h_relu1)        
-        h_relu3 = self.slice3(h_relu2)        
-        h_relu4 = self.slice4(h_relu3)        
-        h_relu5 = self.slice5(h_relu4)                
+        h_relu2 = self.slice2(h_relu1)
+        h_relu3 = self.slice3(h_relu2)
+        h_relu4 = self.slice4(h_relu3)
+        h_relu5 = self.slice5(h_relu4)
         out = [h_relu1, h_relu2, h_relu3, h_relu4, h_relu5]
         return out
-
-
-
