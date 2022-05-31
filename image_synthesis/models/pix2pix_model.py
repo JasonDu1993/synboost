@@ -124,16 +124,16 @@ class Pix2PixModel(torch.nn.Module):
     def preprocess_input(self, data):
         # move to GPU and change data types
         data['label'] = data['label'].long()
-        data['label'] = data['label'].cuda(self.opt.gpu)
-        data['instance'] = data['instance'].cuda(self.opt.gpu)
-        data['image'] = data['image'].cuda(self.opt.gpu)
+        # data['label'] = data['label'].cuda(self.opt.gpu)
+        # data['instance'] = data['instance'].cuda(self.opt.gpu)
+        # data['image'] = data['image'].cuda(self.opt.gpu)
 
         # create one-hot label map
         label_map = data['label']
         bs, _, h, w = label_map.size()
         nc = self.opt.label_nc + 1 if self.opt.contain_dontcare_label \
             else self.opt.label_nc
-        input_label = self.FloatTensor(bs, nc, h, w).zero_()
+        input_label =torch.zeros(bs, nc, h, w).to(label_map.device)
         input_semantics = input_label.scatter_(1, label_map, 1.0)
 
         # concatenate instance map if it exists
@@ -235,7 +235,8 @@ class Pix2PixModel(torch.nn.Module):
 
 
     def get_edges(self, t):
-        edge = self.BoolTensor(t.size()).zero_() # for PyTorch versions higher than 1.2.0, use BoolTensor instead of ByteTensor
+        print("t", t.shape)
+        edge = torch.zeros_like(t, dtype=torch.bool).to(t.device) # for PyTorch versions higher than 1.2.0, use BoolTensor instead of ByteTensor
         edge[:, :, :, 1:] = edge[:, :, :, 1:] | (t[:, :, :, 1:] != t[:, :, :, :-1])
         edge[:, :, :, :-1] = edge[:, :, :, :-1] | (t[:, :, :, 1:] != t[:, :, :, :-1])
         edge[:, :, 1:, :] = edge[:, :, 1:, :] | (t[:, :, 1:, :] != t[:, :, :-1, :])

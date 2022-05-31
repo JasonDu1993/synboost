@@ -105,26 +105,32 @@ class AnomalyDetector():
         seg_norm = transforms.Normalize(*mean_std)
         img_tensor = seg_norm(img_tensor)
         # np.save("image.npy", img_tensor.unsqueeze(0).cuda().cpu().numpy())
+        torch.cuda.synchronize()
         t1 = time()
         print("img trans {} s".format(t1 - t0))
         # predict segmentation
         with torch.no_grad():
             seg_outs = self.seg_net(img_tensor.unsqueeze(0).cuda())  # shape: [B, 19, H=1024, W=2048]
+        torch.cuda.synchronize()
         t2 = time()
         print("img seg_net {} s".format(t2 - t1))
         # np.save("seg_outs.npy", seg_outs.cpu().numpy())
         # 第一步：分割图后处理为了synnet和diss的输入
+        torch.cuda.synchronize()
         a0 = time()
         seg_softmax_out = F.softmax(seg_outs, dim=1)  # shape: [B, 19, H=1024, W=2048]
+        torch.cuda.synchronize()
         a1 = time()
         print("syn_net preprocess softmax {} s".format(a1 - a0))
         seg_final = np.argmax(seg_outs.cpu().numpy().squeeze(), axis=0)  # segmentation map shape: [H=1024, W=2048]
+        torch.cuda.synchronize()
         a2 = time()
         print("syn_net preprocess argmax {} s".format(a2 - a1))
         # np.save("seg_final.npy", seg_final)
 
         # 第二步：synnet:label_img
         # get label map for synthesis model
+        torch.cuda.synchronize()
         a4 = time()
         label_out = np.zeros_like(seg_final)
         for label_id, train_id in self.opt.dataset_cls.id_to_trainid.items():
@@ -132,6 +138,7 @@ class AnomalyDetector():
             label_out[np.where(seg_final == train_id)] = label_id
             a01 = time()
             # print("syn_net preprocess {} label deal {} s".format(label_id, a01 - a00))
+        torch.cuda.synchronize()
         a5 = time()
         print("syn_net preprocess label {} s".format(a5 - a4))
         # np.save("label_img.npy", np.array(label_out))
@@ -142,11 +149,13 @@ class AnomalyDetector():
         # label_tensor = self.transform_semantic(label_img) * 255.0
         # 1 label_img pytorch
         label_tensor = self.pytorch_resize_totensor(label_out, size=(256, 512), mul=255, interpolation=Image.NEAREST)
+        torch.cuda.synchronize()
         a6 = time()
         print("syn_net preprocess label resize {} s".format(a6 - a5))
         # self.valid(label_tensor, "label_tensor.npy")
 
         label_tensor[label_tensor == 255] = 35  # 'unknown' is opt.label_nc
+        torch.cuda.synchronize()
         a7 = time()
         print("syn_net preprocess label 255 {} s".format(a7 - a6))
         # 第二步：synnet: origin_img
@@ -158,14 +167,17 @@ class AnomalyDetector():
         image_tensor = syn_norm(image_tensor)
         # np.save("image_syn.npy", image_tensor.cpu().numpy())
         # self.valid(image_tensor, "image_syn.npy")
+        torch.cuda.synchronize()
         a8 = time()
         print("syn_net preprocess img resize {} s".format(a8 - a7))
 
         # Get instance map in right format. Since prediction doesn't have instance map, we use semantic instead
         instance_tensor = label_tensor.clone()
+        torch.cuda.synchronize()
         a9 = time()
         print("syn_net preprocess instance_tensor resize {} s".format(a9 - a8))
         print("syn_net preprocess total {} s".format(a9 - a0))
+        torch.cuda.synchronize()
         t3 = time()
         print("img syn_net input preprocess {} s".format(t3 - t2))
 
@@ -177,8 +189,10 @@ class AnomalyDetector():
 
         # 第三步：vggdiff
         # np.save("generated.npy", generated.cpu().numpy())
+        torch.cuda.synchronize()
         t4 = time()
         print("img syn_net {} s".format(t4 - t3))
+        torch.cuda.synchronize()
         b0 = time()
 
         # get initial transformation
@@ -190,6 +204,7 @@ class AnomalyDetector():
         # syn_image_tensor = self.norm_transform_diss(syn_image_tensor).unsqueeze(0).cuda()
         # 4 vgg_diff
         syn_image_tensor1 = self.norm_transform_diss(syn_image_tensor1).unsqueeze(0).cuda()
+        torch.cuda.synchronize()
         b1 = time()
         print("vgg_diff preprocess synimg resize norm{} s".format(b1 - b0))
 
@@ -216,9 +231,11 @@ class AnomalyDetector():
         # image_tensor = self.norm_transform_diss(image_tensor).unsqueeze(0).cuda()
         # 5 vgg_diff
         image_tensor1 = self.norm_transform_diss(image_tensor1).unsqueeze(0).cuda()
+        torch.cuda.synchronize()
         b2 = time()
         print("vgg_diff preprocess inputimg resize norm {} s".format(b2 - b1))
         print("vgg_diff preprocess total {} s".format(b2 - b0))
+        torch.cuda.synchronize()
         t5 = time()
         # np.save("vgg_diff_image_tensor.npy", image_tensor.cpu().numpy())
         # np.save("vgg_diff_syn_image_tensor.npy", syn_image_tensor.cpu().numpy())
@@ -228,6 +245,7 @@ class AnomalyDetector():
         # get softmax difference
         perceptual_diff = self.vgg_diff(image_tensor1, syn_image_tensor1)  # shape [B, 1, 256, 512]
         # np.save("vgg_diff_perceptual_diff.npy", perceptual_diff.cpu().numpy())
+        torch.cuda.synchronize()
         t6 = time()
         print("img vgg_diff {} s".format(t6 - t5))
         # 第四步：diss：perceptual
@@ -280,6 +298,7 @@ class AnomalyDetector():
         # hot encode semantic map
         semantic_tensor[semantic_tensor == 255] = 20  # 'ignore label is 20'
         semantic_tensor = one_hot_encoding(semantic_tensor, 20).unsqueeze(0).cuda()
+        torch.cuda.synchronize()
         t7 = time()
         # 第四步：diss：三个不同的图
         print("img diss_model prerocess {} s".format(t7 - t6))
@@ -296,6 +315,7 @@ class AnomalyDetector():
                                     distance_tensor), dim=1)
             else:
                 diss_pred = F.softmax(self.diss_model(image_tensor1, syn_image_tensor1, semantic_tensor), dim=1)
+        torch.cuda.synchronize()
         t8 = time()
         print("img diss_model {} s".format(t8 - t7))
 
@@ -305,6 +325,7 @@ class AnomalyDetector():
         else:
             diss_pred = diss_pred[:, 1, :, :]
         diss_pred = diss_pred * 255
+        torch.cuda.synchronize()
         t9 = time()
         # np.save("diss_pred.npy", diss_pred)
         print("total {} s".format(t9 - t0))
@@ -334,7 +355,7 @@ class AnomalyDetector():
         distance_img = Image.fromarray(distance.astype(np.uint8).squeeze())
         distance = distance_img.resize((image_og_w, image_og_h))
 
-        result = postprocessing(np.array(seg_img)[None, :], np.array(diss_pred)[None, :], 19)
+        result = postprocessing(np.array(seg_img)[None, :], np.array(diss_pred)[None, :], image_og_h, image_og_w)
         img_box = draw_total_box(np.array(image), result[0], debug=True)
         out = {'anomaly_map': diss_pred, 'segmentation': seg_img, 'synthesis': synthesis,
                'softmax_entropy': entropy, 'perceptual_diff': perceptual_diff, 'softmax_distance': distance,
@@ -496,7 +517,11 @@ class AnomalyDetector():
         model_path = os.path.join(save_folder,
                                   '%s_net_%s.pth' % (config_diss['which_epoch'], config_diss['experiment_name']))
         model_weights = torch.load(model_path)
-        self.diss_model.load_state_dict(model_weights)
+        rt = self.diss_model.load_state_dict(model_weights, strict=False)
+        if rt.missing_keys:
+            print('Missing keys when loading states {}'.format(rt.missing_keys))
+        if rt.unexpected_keys:
+            print('Warning: Keys dismatch when loading backbone states:\n' + str(rt))
         self.diss_model.eval()
         print('Dissimilarity Net Restored')
 

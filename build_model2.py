@@ -16,6 +16,7 @@ import yaml
 import random
 from options.config_class import Config
 import cv2
+import time as t
 
 import sys
 
@@ -31,9 +32,9 @@ from image_dissimilarity.models.dissimilarity_model import DissimNetPrior, Dissi
 from image_dissimilarity.models.vgg_features import VGG19_difference
 from image_dissimilarity.data.cityscapes_dataset import one_hot_encoding
 
-sys.path.insert(0, os.path.join(os.getcwd(), os.path.dirname(__file__), 'utils'))
-from seg_to_rect import postprocessing
-from draw_box_util import draw_total_box
+# sys.path.insert(0, os.path.join(os.getcwd(), os.path.dirname(__file__), 'total_utils'))
+from total_utils.seg_to_rect import postprocessing
+from total_utils.draw_box_util import draw_total_box
 import torch.nn as nn
 from time import time
 
@@ -101,6 +102,7 @@ class RoadAnomalyDetector(nn.Module):
         Returns:
 
         """
+        torch.cuda.synchronize()
         t0 = time()
         B, C, H, W = img.shape
         image_og_h, image_og_w = H, W
@@ -120,27 +122,33 @@ class RoadAnomalyDetector(nn.Module):
         img_tensor = seg_norm(img_tensor)
         # self.valid(img_tensor, "image.npy")
         # np.save("image.npy", img_tensor.unsqueeze(0).cuda().cpu().numpy())
+        torch.cuda.synchronize()
         t1 = time()
         print("img trans {} s".format(t1 - t0))
         # predict segmentation
         with torch.no_grad():
             seg_outs = self.seg_net(img_tensor)  # shape: [B, 19, H=512, W=1024]
+        torch.cuda.synchronize()
         t2 = time()
         print("img seg_net {} s".format(t2 - t1))
         # np.save("seg_outs.npy", seg_outs.cpu().numpy())
         # 第一步：分割图后处理为了synnet和diss的输入
+        torch.cuda.synchronize()
         a0 = time()
         seg_softmax_out = F.softmax(seg_outs, dim=1)  # shape: [B, 19, H=512, W=1024]
+        torch.cuda.synchronize()
         a1 = time()
         print("syn_net preprocess softmax {} s".format(a1 - a0))
         # seg_final = np.argmax(seg_outs.cpu().numpy().squeeze(), axis=0)  # segmentation map shape: [H=1024, W=2048]
         _, seg_final = seg_softmax_out.max(dim=1)  # seg_final shape: [B, H=512, W=1024]
+        torch.cuda.synchronize()
         a2 = time()
         print("syn_net preprocess argmax {} s".format(a2 - a1))
         # np.save("seg_final.npy", seg_final)
 
         # 第二步：synnet:label_img
         # get label map for synthesis model
+        torch.cuda.synchronize()
         a4 = time()
         # seg_final = seg_final.cpu().numpy()
         # label_out = np.zeros_like(seg_final)
@@ -153,6 +161,7 @@ class RoadAnomalyDetector(nn.Module):
 
         for label_id, train_id in self.id_to_trainid.items():
             label_out[seg_final == train_id] = label_id
+        torch.cuda.synchronize()
         a5 = time()
         print("syn_net preprocess label {} s".format(a5 - a4))
         # np.save("label_img.npy", np.array(label_out))
@@ -165,11 +174,13 @@ class RoadAnomalyDetector(nn.Module):
         label_out = label_out.unsqueeze(1)  # shape [B, 1, H, W]
         label_tensor = self.pytorch_resize_totensor(label_out, size=(256, 512), mul=255,
                                                     interpolation=Image.NEAREST)  # shape [B, 1, 256, 512]
+        torch.cuda.synchronize()
         a6 = time()
         print("syn_net preprocess label resize {} s".format(a6 - a5))
         # self.valid(label_tensor, "label_tensor.npy")
 
         label_tensor[label_tensor == 255] = 35  # 'unknown' is opt.label_nc shape [B, 1, 256, 512]
+        torch.cuda.synchronize()
         a7 = time()
         print("syn_net preprocess label 255 {} s".format(a7 - a6))
         # 第二步：synnet: origin_img
@@ -182,14 +193,17 @@ class RoadAnomalyDetector(nn.Module):
         image_tensor = syn_norm(image_tensor)
         # np.save("image_syn.npy", image_tensor.cpu().numpy())
         # self.valid(image_tensor, "image_syn.npy")
+        torch.cuda.synchronize()
         a8 = time()
         print("syn_net preprocess img resize {} s".format(a8 - a7))
 
         # Get instance map in right format. Since prediction doesn't have instance map, we use semantic instead
         instance_tensor = label_tensor.clone()  # shape [B, 1, 256, 512]
+        torch.cuda.synchronize()
         a9 = time()
         print("syn_net preprocess instance_tensor resize {} s".format(a9 - a8))
         print("syn_net preprocess total {} s".format(a9 - a0))
+        torch.cuda.synchronize()
         t3 = time()
         print("img syn_net input preprocess {} s".format(t3 - t2))
 
@@ -201,8 +215,10 @@ class RoadAnomalyDetector(nn.Module):
 
         # 第三步：vggdiff
         # np.save("generated.npy", generated.cpu().numpy())
+        torch.cuda.synchronize()
         t4 = time()
         print("img syn_net {} s".format(t4 - t3))
+        torch.cuda.synchronize()
         b0 = time()
         # get initial transformation
         # 第三步：vggdiff: 合成图，也是第四步的输入
@@ -214,8 +230,9 @@ class RoadAnomalyDetector(nn.Module):
         # syn_image_tensor = self.norm_transform_diss(syn_image_tensor).unsqueeze(0).cuda()
         # 4 vgg_diff
         syn_image_tensor1 = self.norm_transform_diss(syn_image_tensor1)
+        torch.cuda.synchronize()
         b1 = time()
-        print("vgg_diff preprocess synimg resize norm{} s".format(b1 - b0))
+        print("vgg_diff preprocess synimg resize norm {} s".format(b1 - b0))
 
         # 第三步：vggdiff: 输入原图，也是第四步的输入
         # 5 diss image origin origin
@@ -241,9 +258,11 @@ class RoadAnomalyDetector(nn.Module):
         # image_tensor = self.norm_transform_diss(image_tensor).unsqueeze(0).cuda()
         # 5 vgg_diff
         image_tensor1 = self.norm_transform_diss(image_tensor1)
+        torch.cuda.synchronize()
         b2 = time()
         print("vgg_diff preprocess inputimg resize norm {} s".format(b2 - b1))
         print("vgg_diff preprocess total {} s".format(b2 - b0))
+        torch.cuda.synchronize()
         t5 = time()
         # np.save("vgg_diff_image_tensor.npy", image_tensor.cpu().numpy())
         # np.save("vgg_diff_syn_image_tensor.npy", syn_image_tensor.cpu().numpy())
@@ -253,6 +272,7 @@ class RoadAnomalyDetector(nn.Module):
         # get softmax difference
         perceptual_diff = self.vgg_diff(image_tensor1, syn_image_tensor1)  # shape [B, 1, 256, 512]
         # np.save("vgg_diff_perceptual_diff.npy", perceptual_diff.cpu().numpy())
+        torch.cuda.synchronize()
         t6 = time()
         print("img vgg_diff {} s".format(t6 - t5))
         # 第四步：diss：perceptual
@@ -317,6 +337,7 @@ class RoadAnomalyDetector(nn.Module):
         semantic_tensor[semantic_tensor == 255] = 20  # 'ignore label is 20'
         semantic_tensor = semantic_tensor.unsqueeze(1)  # shape [B, 1, 256, 512]
         semantic_tensor = self.one_hot_encoding(semantic_tensor, 20)  # shape [B, clsss_num=19, 256, 512]
+        torch.cuda.synchronize()
         t7 = time()
         # 第四步：diss：三个不同的图
         print("img diss_model prerocess {} s".format(t7 - t6))
@@ -333,6 +354,7 @@ class RoadAnomalyDetector(nn.Module):
                                     distance_tensor), dim=1)
             else:
                 diss_pred = F.softmax(self.diss_model(image_tensor1, syn_image_tensor1, semantic_tensor), dim=1)
+        torch.cuda.synchronize()
         t8 = time()
         print("img diss_model {} s".format(t8 - t7))
 
@@ -342,10 +364,11 @@ class RoadAnomalyDetector(nn.Module):
         else:
             diss_pred = diss_pred[:, 1, :, :]
         diss_pred = diss_pred * 255
+        torch.cuda.synchronize()
         t9 = time()
         # np.save("diss_pred.npy", diss_pred)
         print("total {} s".format(t9 - t0))
-
+        seg_final = seg_final.float()
         if self.vis:
             out = {'anomaly_map': diss_pred, 'segmentation': seg_final, 'synthesis': generated,
                    'softmax_entropy': entropy_tensor, 'perceptual_diff': perceptual_diff_tensor,
@@ -521,7 +544,8 @@ def img_preprocess(image, input_shape):
 
 
 if __name__ == '__main__':
-    input_shape = [3, 512, 1024]
+    input_shape = [3, 256, 512]
+    # input_shape = [3, 512, 1024]
     # input_shape = [3, 1024, 2048]
     root = "./sample_images"
     vis = False
@@ -530,6 +554,7 @@ if __name__ == '__main__':
     detector.to("cuda:{}".format(gpu))
     detector.eval()
     names = list(os.listdir(root))
+    names = names
     for i, name in enumerate(names):
         t0 = time()
         # img_path = "./sample_images/road_anomaly_example.png"
@@ -538,8 +563,8 @@ if __name__ == '__main__':
         image = cv2.imread(img_path)
         image_og_h, image_og_w, _ = image.shape
         img = img_preprocess(image, input_shape)
-        # img = torch.stack([img, img], dim=0).cuda()
-        img = img.unsqueeze(0).cuda()  # 添加batch维度
+        img = torch.stack([img, img], dim=0).cuda()
+        # img = img.unsqueeze(0).cuda()  # 添加batch维度
         t1 = time()
         print("img to cuda {} s".format(t1 - t0))
         if vis:
@@ -580,7 +605,7 @@ if __name__ == '__main__':
             distance_img = Image.fromarray(distance.astype(np.uint8).squeeze())
             distance = distance_img.resize((image_og_w, image_og_h))
 
-            result = postprocessing(np.array(seg_img)[None, :], np.array(diss_pred)[None, :], 19)
+            result = postprocessing(np.array(seg_img)[None, :], np.array(diss_pred)[None, :], image_og_h, image_og_w)
             img_box = draw_total_box(np.array(image), result[0], debug=True)
             results = {'anomaly_map': diss_pred, 'segmentation': seg_img, 'synthesis': synthesis,
                        'softmax_entropy': entropy, 'perceptual_diff': perceptual_diff, 'softmax_distance': distance,
@@ -613,28 +638,17 @@ if __name__ == '__main__':
             prediction, anomaly_score = detector(img)
 
             # 可视化diss_pred
-            diss_pred_img = anomaly_score[0].cpu().numpy().astype(np.uint8)
-            diss_pred = Image.fromarray(diss_pred_img).resize((image_og_w, image_og_h))
-            # np.save("diss_pred_resize.npy", np.array(diss_pred))
+            diss_pred_img = anomaly_score[0].cpu().numpy()
+
+            obs_h, obs_w = diss_pred_img.shape
             # 可视化分割图
             seg_final_img = prediction[0].cpu().numpy().astype(np.uint8)
-            semantic = Image.fromarray(seg_final_img)
-            seg_img = semantic.resize((image_og_w, image_og_h))
+            seg_img = cv2.resize(seg_final_img, (obs_w, obs_h))
 
-            result = postprocessing(np.array(seg_img)[None, :], np.array(diss_pred)[None, :], 19)
+            result = postprocessing(np.array(seg_img)[None, :], np.array(diss_pred_img)[None, :], image_og_h,
+                                    image_og_w)
             img_box = draw_total_box(np.array(image), result[0], debug=True)
             print("spend total {} s".format(time() - t0))
             draw_total_box(img_path, result[0], debug=True)
-        break
-
-    # Resize outputs to original input image size
-    # diss_pred = Image.fromarray(diss_pred.squeeze() * 255).resize((image_og_w, image_og_h))
-    # seg_img = semantic.resize((image_og_w, image_og_h))
-    # entropy = entropy_img.resize((image_og_w, image_og_h))
-    # perceptual_diff = perceptual_diff.resize((image_og_w, image_og_h))
-    # distance = entropy.resize((image_og_w, image_og_h))
-    # synthesis = synthesis_final_img.resize((image_og_w, image_og_h))
-    # result = postprocessing(np.array(seg_img)[None, :], np.array(diss_pred)[None, :], 19)
-    # draw_total_box(img, result[0], debug=True)
-    # out = {'anomaly_map': diss_pred, 'segmentation': seg_img, 'synthesis': synthesis,
-    #        'softmax_entropy': entropy, 'perceptual_diff': perceptual_diff, 'softmax_distance': distance}
+            # break
+            t.sleep(10)

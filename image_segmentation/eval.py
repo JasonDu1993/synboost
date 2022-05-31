@@ -29,8 +29,8 @@ from config import assert_and_infer_cfg
 from datasets import cityscapes
 from optimizer import restore_snapshot
 
-from utils.my_data_parallel import MyDataParallel
-from utils.misc import fast_hist, save_log, per_class_iu, evaluate_eval_for_inference
+from total_utils.my_data_parallel import MyDataParallel
+from total_utils.misc import fast_hist, save_log, per_class_iu, evaluate_eval_for_inference
 
 import network
 

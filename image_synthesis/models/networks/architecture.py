@@ -72,13 +72,21 @@ class DepthsepCCBlock(nn.Module):
 
         dx = self.norm_1(x)
         dx = self.conv_0(dx, conv_weights1)
+        # del conv_weights1
+        # torch.cuda.empty_cache()
         dx = self.conv_1(dx)
         dx = torch.mul(dx, se_weights1)
+        # del se_weights1
+        # torch.cuda.empty_cache()
         dx = self.actvn(dx)
         dx = self.norm_2(dx)
         dx = self.conv_2(dx, conv_weights2)
+        # del conv_weights2
+        # torch.cuda.empty_cache()
         dx = self.conv_3(dx)
         dx = torch.mul(dx, se_weights2)
+        # del se_weights2
+        # torch.cuda.empty_cache()
         dx = self.actvn(dx)
 
         out = x_s + dx

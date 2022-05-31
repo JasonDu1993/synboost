@@ -7,9 +7,9 @@ from estimator import AnomalyDetector
 import numpy as np
 from log_util import get_root_logger
 from time import time
-from build_model import RoadAnomalyDetector
-from seg_to_rect import postprocessing
-from draw_box_util import draw_total_box
+from build_model2 import RoadAnomalyDetector
+from total_utils.seg_to_rect import postprocessing
+from total_utils.draw_box_util import draw_total_box
 
 # function for segmentations
 palette = [128, 64, 128, 244, 35, 232, 70, 70, 70, 102, 102, 156, 190, 153, 153,
@@ -93,4 +93,4 @@ for idx, img_path in enumerate(images):
 
     img_box = results['box']
     cv2.imwrite(os.path.join(box_path, basename), img_box)
-    break
+

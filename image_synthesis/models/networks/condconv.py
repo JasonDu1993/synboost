@@ -22,10 +22,10 @@ class DepthConv(nn.Module):
 
         N, C, H, W = x.size()
         
-        conv_weights = conv_weights.view(N * C, self.kw * self.kw, H//self.stride, W//self.stride)
+        conv_weights = conv_weights.view(N * C, self.kw * self.kw, int(H//self.stride), int(W//self.stride))
         #conv_weights = nn.functional.softmax(conv_weights, dim=1)
-        x = self.unfold(x).view(N * C, self.kw * self.kw, H//self.stride, W//self.stride)
-        x = torch.mul(conv_weights, x).sum(dim=1, keepdim=False).view(N, C, H//self.stride, W//self.stride)
+        x = self.unfold(x).view(N * C, self.kw * self.kw, int(H//self.stride), int(W//self.stride))
+        x = torch.mul(conv_weights, x).sum(dim=1, keepdim=False).view(N, C, int(H//self.stride), int(W//self.stride))
 
         #x = self.norm_layer(x)
 
