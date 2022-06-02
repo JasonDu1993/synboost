@@ -20,6 +20,8 @@ from onnx_conversion import remove_all_spectral_norm
 from total_utils.seg_to_rect import postprocessing
 from total_utils.draw_box_util import draw_total_box
 import time as ti
+from onnxsim import simplify
+import onnx
 
 print(onnxruntime.get_device())
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
@@ -52,8 +54,13 @@ def get_onnx(save_onnx_path, input_shape, isdynamic=True):
     else:
         dynamic_axes = None
     torch.onnx.export(model, x, save_onnx_path, input_names=input_names, output_names=output_names, verbose=True,
-                      opset_version=11, dynamic_axes=dynamic_axes)
-
+                      opset_version=11, dynamic_axes=dynamic_axes, do_constant_folding=True)
+    model_simp, check = simplify(save_onnx_path, dynamic_input_shape=True)
+    save_onnx_path_sp = save_onnx_path.split(".")
+    save_onnx_path_sp[-2] = save_onnx_path_sp[-2]+"_sim"
+    output_path = ".".join(save_onnx_path_sp)
+    print("sim onnx path: {}".format(output_path))
+    onnx.save(model_simp, output_path)
 
 def img_preprocess(image, input_shape):
     # image = Image.open(img_path)
@@ -66,21 +73,22 @@ def img_preprocess(image, input_shape):
     img = img_resize.transpose((2, 0, 1)).astype(np.float32)
     # img = np.stack([img, img])
     img = img[None, ...]
+    print("img:", img.flatten()[:20])
+    print("img end:", img.flatten()[-20:])
     return img
 
 
 def run_onnx(onnx_path, input_shape):
-    sess_options = onnxruntime.SessionOptions()
+    # sess_options = onnxruntime.SessionOptions()
     # print(sess_options.graph_optimization_level)
-    # sess_options = None
 
     # sess_options.intra_op_num_threads = 1
 
     # Set graph optimization level
-    sess_options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_EXTENDED
+    # sess_options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_EXTENDED
 
     # To enable model serialization after graph optimization set this
-    sess_options.optimized_model_filepath = "./model/optimized_synboost_dynamic_batch_hw.onnx"
+    # sess_options.optimized_model_filepath = "./model/optimized_synboost_dynamic_batch_hw.onnx"
     sess_options = None
     model = onnxruntime.InferenceSession(onnx_path, sess_options=sess_options, providers=['CUDAExecutionProvider'])
     print("get_providers", model.get_providers())
@@ -125,14 +133,15 @@ def run_onnx(onnx_path, input_shape):
 
 
 if __name__ == '__main__':
-    save_onnx_path = "./model/synboost_dynamic_batch_hw.onnx"
+    # save_onnx_path = "./model/synboost_dynamic_batch_hw.onnx"
     # save_onnx_path = "./model/synboost_dynamic_batch_h256w512.onnx"
     # save_onnx_path = "./model/optimized_synboost_dynamic_batch_hw_1.onnx"
     # save_onnx_path = "./model/optimized_synboost_dynamic_batch_hw.onnx"
     # save_onnx_path = "./model/synboost_b2_h256w512.onnx"
     # save_onnx_path = "./model/synboost_dynamic_batch_h256w512_bool.onnx"
     # save_onnx_path = "optimized_model.onnx"
-    isdynamic = True
+    save_onnx_path = "/zhoudu/workspaces/obstacle_det/actcommon/install/models/facerecog.road_obstacle_dect/seg_syn_vgg_entropy_b1h256w512.onnx"
+    isdynamic = False
     # input_shape = [3, 512, 1024]  # c, h, w
     input_shape = [3, 256, 512]  # c, h, w
     # if not os.path.exists(save_onnx_path):

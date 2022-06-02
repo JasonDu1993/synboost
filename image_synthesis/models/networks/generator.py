@@ -22,12 +22,12 @@ class CondConvGenerator(BaseNetwork):
 
         if opt.use_vae:
             # In case of VAE, we will sample from random z vector
-            self.fc = nn.Linear(opt.z_dim, 16*nf*self.sw*self.sh)            
+            self.fc = nn.Linear(opt.z_dim, 16*nf*self.sw*self.sh)
         else:
             # Otherwise, we make the network deterministic by starting with
             # downsampled segmentation map instead of random z
             self.fc = nn.Conv2d(self.opt.semantic_nc, 16*nf, 3, padding=1)
-            
+
         # global-context-aware weight prediction network
         norm_layer = get_nonspade_norm_layer(opt, opt.norm_G)
         self.labelenc1 = nn.Sequential(norm_layer(nn.Conv2d(self.opt.semantic_nc, nf, 3, padding=1), opt), nn.LeakyReLU(0.2, True)) # 256
@@ -47,7 +47,7 @@ class CondConvGenerator(BaseNetwork):
         self.labellat5 = nn.Sequential(norm_layer(nn.Conv2d(nf, nf, 1), opt), nn.LeakyReLU(0.2, True))#256
         if self.num_upsampling_layers == 'more':
             self.labellat6 = nn.Sequential(norm_layer(nn.Conv2d(nf, nf, 1), opt), nn.LeakyReLU(0.2, True))
-        
+
         self.labeldec1 = nn.Sequential(norm_layer(nn.Conv2d(nf, nf, 3, padding=1), opt), nn.LeakyReLU(0.2, True))
         self.labeldec2 = nn.Sequential(norm_layer(nn.Conv2d(nf, nf, 3, padding=1), opt), nn.LeakyReLU(0.2, True))
         self.labeldec3 = nn.Sequential(norm_layer(nn.Conv2d(nf, nf, 3, padding=1), opt), nn.LeakyReLU(0.2, True))
@@ -65,9 +65,9 @@ class CondConvGenerator(BaseNetwork):
         self.up_1 = DepthsepCCBlock(8*nf, 4*nf, opt, opt.semantic_nc + nf)
         self.up_2 = DepthsepCCBlock(4*nf, 2*nf, opt, opt.semantic_nc + nf)
         self.up_3 = DepthsepCCBlock(2*nf, 1*nf, opt, opt.semantic_nc + nf)
-            
+
         final_nc = nf
- 
+
         self.conv_img = nn.Conv2d(final_nc, 3, 3, padding=1)
 
         self.up = nn.Upsample(scale_factor=2)
@@ -80,12 +80,12 @@ class CondConvGenerator(BaseNetwork):
 
         sw = opt.crop_size // (2**num_up_layers)
         sh = round(sw / opt.aspect_ratio)
-            
-        return sw, sh    
+
+        return sw, sh
 
     def forward(self, input, z=None):
         seg = input
-        
+
         if self.opt.use_vae:
             # we sample z from unit normal and reshape the tensor
             if z is None:
@@ -108,30 +108,30 @@ class CondConvGenerator(BaseNetwork):
         if self.num_upsampling_layers == 'more':
             seg7 = self.labelenc7(seg6)
             segout1 = seg7
-            segout2 = self.up(segout1) + self.labellat1(seg6) 
-            segout2 = self.labeldec1(segout2) 
-            segout3 = self.up(segout2) + self.labellat2(seg5) 
-            segout3 = self.labeldec2(segout3) 
-            segout4 = self.up(segout3) + self.labellat3(seg4) 
-            segout4 = self.labeldec3(segout4) 
-            segout5 = self.up(segout4) + self.labellat4(seg3) 
-            segout5 = self.labeldec4(segout5) 
-            segout6 = self.up(segout5) + self.labellat5(seg2) 
-            segout6 = self.labeldec5(segout6) 
-            segout7 = self.up(segout6) + self.labellat6(seg1) 
+            segout2 = self.up(segout1) + self.labellat1(seg6)
+            segout2 = self.labeldec1(segout2)
+            segout3 = self.up(segout2) + self.labellat2(seg5)
+            segout3 = self.labeldec2(segout3)
+            segout4 = self.up(segout3) + self.labellat3(seg4)
+            segout4 = self.labeldec3(segout4)
+            segout5 = self.up(segout4) + self.labellat4(seg3)
+            segout5 = self.labeldec4(segout5)
+            segout6 = self.up(segout5) + self.labellat5(seg2)
+            segout6 = self.labeldec5(segout6)
+            segout7 = self.up(segout6) + self.labellat6(seg1)
             segout7 = self.labeldec6(segout7)
         else:
             segout1 = seg6
             segout2 = self.up(segout1) + self.labellat1(seg5)
-            segout2 = self.labeldec1(segout2) 
-            segout3 = self.up(segout2) + self.labellat2(seg4) 
-            segout3 = self.labeldec2(segout3) 
+            segout2 = self.labeldec1(segout2)
+            segout3 = self.up(segout2) + self.labellat2(seg4)
+            segout3 = self.labeldec2(segout3)
             segout4 = self.up(segout3) + self.labellat3(seg3)
-            segout4 = self.labeldec3(segout4) 
+            segout4 = self.labeldec3(segout4)
             segout5 = self.up(segout4) + self.labellat4(seg2)
-            segout5 = self.labeldec4(segout5) 
-            segout6 = self.up(segout5) + self.labellat5(seg1) 
-            segout6 = self.labeldec5(segout6) 
+            segout5 = self.labeldec4(segout5)
+            segout6 = self.up(segout5) + self.labellat5(seg1)
+            segout6 = self.labeldec5(segout6)
 
         x = self.head_0(x, torch.cat((F.interpolate(seg, size=x.size()[2:], mode='nearest'), segout1), dim=1)) # 8
 
@@ -139,7 +139,7 @@ class CondConvGenerator(BaseNetwork):
         x = self.G_middle_0(x, torch.cat((F.interpolate(seg, size=x.size()[2:], mode='nearest'), segout2), dim=1)) # 16
         if self.num_upsampling_layers == 'more':
             x = self.up(x)
-            x = self.G_middle_1(x, torch.cat((F.interpolate(seg, size=x.size()[2:], mode='nearest'), segout3), dim=1)) 
+            x = self.G_middle_1(x, torch.cat((F.interpolate(seg, size=x.size()[2:], mode='nearest'), segout3), dim=1))
         else:
             x = self.G_middle_1(x, torch.cat((F.interpolate(seg, size=x.size()[2:], mode='nearest'), segout2), dim=1)) # 16
 

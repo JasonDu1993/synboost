@@ -21,6 +21,7 @@ import time as t
 import sys
 
 sys.path.insert(0, os.path.join(os.getcwd(), os.path.dirname(__file__), 'image_segmentation'))
+from image_segmentation.datasets.cityscapes_labels import trainId2labelId
 import network
 from optimizer import restore_snapshot
 from datasets import cityscapes
@@ -38,6 +39,8 @@ from total_utils.draw_box_util import draw_total_box
 import torch.nn as nn
 from time import time
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
 
 class RoadAnomalyDetector(nn.Module):
     def __init__(self, ours=True, input_shape=(3, 512, 1024), seed=0, fishyscapes_wrapper=True, vis=False):
@@ -54,7 +57,23 @@ class RoadAnomalyDetector(nn.Module):
         self.get_transformations()
         self.fishyscapes_wrapper = fishyscapes_wrapper
         self.c, self.h, self.w = input_shape
-        self.id_to_trainid = self.opt.dataset_cls.id_to_trainid
+        # self.id_to_trainid = self.opt.dataset_cls.id_to_trainid
+        self.id_to_trainid = {0: 255, 1: 255, 2: 255, 3: 255, 4: 255, 5: 255, 6: 255, 7: 0, 8: 1, 9: 255, 10: 255,
+                              11: 2, 12: 3, 13: 4, 14: 255, 15: 255, 16: 255, 17: 5, 18: 255, 19: 6, 20: 7,
+                              21: 8, 22: 9, 23: 10, 24: 11, 25: 12, 26: 13, 27: 14, 28: 15, 29: 255, 30: 255,
+                              31: 16, 32: 17, 33: 18, -1: -1}
+        """产生下面的id_index
+        a = list(np.arange(35).tolist())
+        for trainid in trainId2labelId:
+            labelid = trainId2labelId[trainid]
+            a[trainid], a[labelid] = a[labelid], a[trainid]
+        m = [0] * 35
+        for i in range(len(a)):
+            m[a[i]] = i
+        print(m)
+        """
+        self.id_index = [20, 21, 24, 25, 26, 32, 19, 0, 1, 22, 23, 2, 3, 4, 27, 28, 31, 5, 33, 6, 7, 8, 9, 10, 11, 12,
+                         13, 14, 15, 29, 30, 16, 17, 18, 34]
         self.vis = vis
 
     def valid(self, x, path="image.npy", thd=1e-3):
@@ -81,7 +100,7 @@ class RoadAnomalyDetector(nn.Module):
             x = torch.from_numpy(x)
         elif isinstance(x, np.ndarray):
             x = torch.from_numpy(x)
-        x = x.type(torch.uint8)
+        # x = x.type(torch.int)
         h, w = size
 
         if x.dim() < 3:
@@ -141,6 +160,7 @@ class RoadAnomalyDetector(nn.Module):
         print("syn_net preprocess softmax {} s".format(a1 - a0))
         # seg_final = np.argmax(seg_outs.cpu().numpy().squeeze(), axis=0)  # segmentation map shape: [H=1024, W=2048]
         _, seg_final = seg_softmax_out.max(dim=1)  # seg_final shape: [B, H=512, W=1024]
+        seg_final = seg_final.float()
         torch.cuda.synchronize()
         a2 = time()
         print("syn_net preprocess argmax {} s".format(a2 - a1))
@@ -157,7 +177,7 @@ class RoadAnomalyDetector(nn.Module):
         #     label_out[np.where(seg_final == train_id)] = label_id
         #     a01 = time()
         #     # print("syn_net preprocess {} label deal {} s".format(label_id, a01 - a00))
-        label_out = torch.zeros_like(seg_final)  # shape [B, H, W]
+        label_out = torch.zeros_like(seg_final).float()  # shape [B, H, W]
 
         for label_id, train_id in self.id_to_trainid.items():
             label_out[seg_final == train_id] = label_id
@@ -188,7 +208,7 @@ class RoadAnomalyDetector(nn.Module):
         # image_tensor = self.transform_image_syn(img)
         # 2 syn_img_input pytorch
         image_tensor = self.pytorch_resize_totensor(img, size=(256, 512), mul=1,
-                                                    interpolation=Image.BICUBIC)  # shape [B, 3, 256, 512]
+                                                    interpolation=Image.BILINEAR)  # shape [B, 3, 256, 512]
         syn_norm = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         image_tensor = syn_norm(image_tensor)
         # np.save("image_syn.npy", image_tensor.cpu().numpy())
@@ -207,9 +227,20 @@ class RoadAnomalyDetector(nn.Module):
         t3 = time()
         print("img syn_net input preprocess {} s".format(t3 - t2))
 
+        seg_softmax_out_mask = (seg_softmax_out == seg_softmax_out.max(dim=1, keepdim=True)[0]).float()
+        mb, mc, mh, mw = seg_softmax_out_mask.shape
+        mask = seg_softmax_out_mask.reshape(mb, mc, mh * mw)
+        mask = F.pad(mask, [0, 0, 0, 16], mode="constant", value=0.0)
+        mask = mask.reshape(mb, mc + 16, mh, mw)
+        mask = mask[:, self.id_index, :, :]
+        mask = self.pytorch_resize_totensor(mask, size=(256, 512), mul=1, interpolation=Image.NEAREST,
+                                            totensor=False)  # shape [B, 1, 256, 512]
+
         # run synthesis
-        syn_input = {'label': label_tensor, 'instance': instance_tensor,
-                     'image': image_tensor}
+        # syn_input = {'label': label_tensor, 'instance': instance_tensor,
+        #              'image': image_tensor, "mask": mask}
+        syn_input = {'instance': instance_tensor,
+                     'image': image_tensor, "mask": mask}
 
         generated = self.syn_net(syn_input, mode='inference')  # shape [B, 3, 256, 512]
 
@@ -303,9 +334,9 @@ class RoadAnomalyDetector(nn.Module):
         # 7 entropy origin
         # entropy_tensor = self.base_transforms_diss(entropy_img).unsqueeze(0).cuda()
         # 7 entropy pytorch
+        entropy = entropy.unsqueeze(1)  # shape [B, 1, 256, 512]
         entropy_tensor = self.pytorch_resize_totensor(entropy, size=(256, 512), mul=1,
-                                                      interpolation=Image.NEAREST)  # shape [B, 256, 512]
-        entropy_tensor = entropy_tensor.unsqueeze(1)  # shape [B, 1, 256, 512]
+                                                      interpolation=Image.NEAREST)  # shape [B, 1, 256, 512]
         # 第四步：diss：distance
         # get softmax distance
         distance, _ = torch.topk(seg_softmax_out, 2, dim=1)  # distance shape [B, 2, H, W]
@@ -320,23 +351,28 @@ class RoadAnomalyDetector(nn.Module):
         # 8 distance origin
         # distance_tensor = self.base_transforms_diss(distance_img).unsqueeze(0).cuda()
         # 9 entropy pytorch
+        distance = distance.unsqueeze(1)  # shape [B, 1, 256, 512]
         distance_tensor = self.pytorch_resize_totensor(distance, size=(256, 512), mul=1,
-                                                       interpolation=Image.NEAREST)  # shape [B, 256, 512]
-        distance_tensor = distance_tensor.unsqueeze(1)  # shape [B, 1, 256, 512]
+                                                       interpolation=Image.NEAREST)  # shape [B, 1, 256, 512]
 
         # 第四步：diss：分割图
         # 3 diss semantic origin
         # semantic_tensor = self.base_transforms_diss(semantic) * 255
         # 3 diss semantic pytorch
-        semantic_tensor = self.pytorch_resize_totensor(seg_final, size=(256, 512), mul=255,
-                                                       interpolation=Image.NEAREST)  # shape [B, 256, 512]
+        # semantic_tensor = self.pytorch_resize_totensor(seg_final, size=(256, 512), mul=255,
+        #                                                interpolation=Image.NEAREST)  # shape [B, 256, 512]
         # 4 vgg_diff diss syn image origin
         # syn_image_tensor = self.base_transforms_diss(synthesis_final_img)
         # 4 vgg_diff diss syn image pytorch
         # hot encode semantic map
-        semantic_tensor[semantic_tensor == 255] = 20  # 'ignore label is 20'
-        semantic_tensor = semantic_tensor.unsqueeze(1)  # shape [B, 1, 256, 512]
-        semantic_tensor = self.one_hot_encoding(semantic_tensor, 20)  # shape [B, clsss_num=19, 256, 512]
+        # semantic_tensor[semantic_tensor == 255] = 20  # 'ignore label is 20'
+        # semantic_tensor = semantic_tensor.unsqueeze(1)  # shape [B, 1, 256, 512]
+        # semantic_tensor = self.one_hot_encoding(semantic_tensor, 20)  # shape [B, clsss_num=19, 256, 512]
+
+        semantic_tensor = self.pytorch_resize_totensor(seg_softmax_out_mask, size=(256, 512), mul=1,
+                                                       interpolation=Image.NEAREST,
+                                                       totensor=False)  # shape [B, 19, 256, 512]
+        # print("seg_softmax_out_mask", torch.sum((seg_softmax_out_mask - semantic_tensor) > 1e-4))
         torch.cuda.synchronize()
         t7 = time()
         # 第四步：diss：三个不同的图
@@ -368,7 +404,6 @@ class RoadAnomalyDetector(nn.Module):
         t9 = time()
         # np.save("diss_pred.npy", diss_pred)
         print("total {} s".format(t9 - t0))
-        seg_final = seg_final.float()
         if self.vis:
             out = {'anomaly_map': diss_pred, 'segmentation': seg_final, 'synthesis': generated,
                    'softmax_entropy': entropy_tensor, 'perceptual_diff': perceptual_diff_tensor,
@@ -548,7 +583,7 @@ if __name__ == '__main__':
     # input_shape = [3, 512, 1024]
     # input_shape = [3, 1024, 2048]
     root = "./sample_images"
-    vis = False
+    vis = True
     detector = RoadAnomalyDetector(True, input_shape, vis=vis)
     gpu = 0
     detector.to("cuda:{}".format(gpu))

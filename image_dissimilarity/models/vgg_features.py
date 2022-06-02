@@ -125,11 +125,17 @@ class VGG19_difference(torch.nn.Module):
 	def __init__(self, requires_grad=False):
 		super().__init__()
 		vgg_pretrained_features = torchvision.models.vgg19(pretrained=True).features
-		self.up5 = Upsample(scale_factor=16, mode='bicubic')
-		self.up4 = Upsample(scale_factor=8, mode='bicubic')
-		self.up3 = Upsample(scale_factor=4, mode='bicubic')
-		self.up2 = Upsample(scale_factor=2, mode='bicubic')
-		self.up1 = Upsample(scale_factor=1, mode='bicubic')
+		# self.up5 = Upsample(scale_factor=16, mode='bicubic')
+		# self.up4 = Upsample(scale_factor=8, mode='bicubic')
+		# self.up3 = Upsample(scale_factor=4, mode='bicubic')
+		# self.up2 = Upsample(scale_factor=2, mode='bicubic')
+		# self.up1 = Upsample(scale_factor=1, mode='bicubic')
+		self.up5 = Upsample(scale_factor=16, mode='bilinear')
+		self.up4 = Upsample(scale_factor=8, mode='bilinear')
+		self.up3 = Upsample(scale_factor=4, mode='bilinear')
+		self.up2 = Upsample(scale_factor=2, mode='bilinear')
+		self.up1 = Upsample(scale_factor=1, mode='bilinear')
+
 		self.weights = [1.0 / 32, 1.0 / 16, 1.0 / 8, 1.0 / 4, 1.0]
 
 

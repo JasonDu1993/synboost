@@ -2,6 +2,9 @@ import torch
 import models.networks as networks
 import util.util as util
 import pdb
+from time import time
+import torch.nn.functional as F
+
 
 class Pix2PixModel(torch.nn.Module):
     @staticmethod
@@ -27,6 +30,8 @@ class Pix2PixModel(torch.nn.Module):
                 self.criterionVGG = networks.VGGLoss(self.opt.gpu)
             if opt.use_vae:
                 self.KLDLoss = networks.KLDLoss()
+        torch.manual_seed(1234)
+        self.eps = torch.randn((1, 256))
 
     # Entry point for all calls involving forward pass
     # of deep networks. We used this approach since DataParallel module
@@ -35,6 +40,7 @@ class Pix2PixModel(torch.nn.Module):
     def forward(self, data, mode):
         if isinstance(mode, str):
             input_semantics, real_image = self.preprocess_input(data)
+
             if mode == 'generator':
                 g_loss, generated = self.compute_generator_loss(
                     input_semantics, real_image)
@@ -58,21 +64,20 @@ class Pix2PixModel(torch.nn.Module):
             image = mode
             label = label.cuda(self.opt.gpu)
             image = image.cuda(self.opt.gpu)
-    
+
             with torch.no_grad():
                 fake_image, _ = self.generate_fake(label, image)
             return fake_image
-        
+
     # Deprecated! (Corrected by If/Else statement in forward function)
     def _forward(self, label, image):
         # move to GPU and change data types
         label = label.cuda(self.opt.gpu)
         image = image.cuda(self.opt.gpu)
-        
+
         with torch.no_grad():
             fake_image, _ = self.generate_fake(label, image)
         return fake_image
-
 
     def create_optimizers(self, opt):
         G_params = list(self.netG.parameters())
@@ -123,24 +128,54 @@ class Pix2PixModel(torch.nn.Module):
 
     def preprocess_input(self, data):
         # move to GPU and change data types
-        data['label'] = data['label'].long()
+        # data["label"] = data["label"].long()
         # data['label'] = data['label'].cuda(self.opt.gpu)
         # data['instance'] = data['instance'].cuda(self.opt.gpu)
         # data['image'] = data['image'].cuda(self.opt.gpu)
 
         # create one-hot label map
-        label_map = data['label']
-        bs, _, h, w = label_map.size()
-        nc = self.opt.label_nc + 1 if self.opt.contain_dontcare_label \
-            else self.opt.label_nc
-        input_label =torch.zeros(bs, nc, h, w).to(label_map.device)
-        input_semantics = input_label.scatter_(1, label_map, 1.0)
+        # label_map = data["label"]
+        # bs, _, h, w = label_map.size()  # shape [bs, 1, h, w]
+        # nc = self.opt.label_nc + 1 if self.opt.contain_dontcare_label \
+        #     else self.opt.label_nc
+        # input_label1 = torch.zeros(bs, nc, h, w).to(label_map.device)
+        # input_semantics1 = input_label1.scatter_(1, label_map, 1.0)
+
+        mask = data["mask"]
+        # print(torch.sum(mask!=input_semantics1))
+
+        """ 替换方案1：会产生inplace操作
+        input_label = torch.zeros(bs * nc * h * w).to(label_map.device)
+        label_map = label_map.flatten()
+
+        e = torch.range(0, bs * nc * h * w - 1, nc).to(label_map.device).long()
+        label_map = label_map + e
+        # input_label[label_map.flatten()] = 1
+        # input_label[1] = 1
+        torch.cuda.synchronize()
+        t0 = time()
+        for i in range(bs * h * w):
+            input_label[label_map[i]] = 1
+        torch.cuda.synchronize()
+        print("img syn_net scatter Equivalent {} s".format(time() - t0))
+        input_label = input_label.reshape(bs, h, w, nc).permute(0, 3, 1, 2)
+        """
+
+        # torch.cuda.synchronize()
+        # t0 = time()
+        # for i in range(bs):
+        #     for j in range(h):
+        #         for k in range(w):
+        #             ind = label_map[i, 0, j, k]
+        #             input_label[i, ind, j, k] = 1
+        # torch.cuda.synchronize()
+        # print("img syn_net scatter Equivalent {} s".format(time() - t0))
 
         # concatenate instance map if it exists
         if not self.opt.no_instance:
             inst_map = data['instance']
             instance_edge_map = self.get_edges(inst_map)
-            input_semantics = torch.cat((input_semantics, instance_edge_map), dim=1)
+            input_semantics = torch.cat((mask, instance_edge_map), dim=1)
 
         return input_semantics, data['image']
 
@@ -154,15 +189,15 @@ class Pix2PixModel(torch.nn.Module):
             G_losses['KLD'] = KLD_loss
 
         feat_fake, pred_fake, feat_real, pred_real = self.discriminate(
-                input_semantics, fake_image, real_image)
+            input_semantics, fake_image, real_image)
         if not self.opt.no_ganFeat_loss:
             GAN_Feat_loss = self.FloatTensor(1).fill_(0)
             num_D = len(feat_fake)
             for i in range(num_D):
                 GAN_Feat_loss += self.criterionFeat(
-                        feat_fake[i], feat_real[i].detach()) * self.opt.lambda_feat / num_D
+                    feat_fake[i], feat_real[i].detach()) * self.opt.lambda_feat / num_D
             G_losses['GAN_Feat'] = GAN_Feat_loss
-                   
+
         G_losses['GAN'] = self.criterionGAN(pred_fake, True, for_discriminator=False)
 
         if not self.opt.no_vgg_loss:
@@ -179,9 +214,8 @@ class Pix2PixModel(torch.nn.Module):
 
         _, pred_fake, _, pred_real = self.discriminate(input_semantics, fake_image, real_image)
 
-
         D_losses['D_Fake'] = self.criterionGAN(pred_fake, False, for_discriminator=True)
-        D_losses['D_real'] = self.criterionGAN(pred_real, True,  for_discriminator=True)
+        D_losses['D_real'] = self.criterionGAN(pred_real, True, for_discriminator=True)
 
         return D_losses
 
@@ -211,8 +245,8 @@ class Pix2PixModel(torch.nn.Module):
     def discriminate(self, input_semantics, fake_image, real_image):
         fake_and_real_img = torch.cat([fake_image, real_image], dim=0)
 
-        discriminator_out = self.netD(fake_and_real_img, 
-                        segmap=torch.cat((input_semantics, input_semantics), dim=0))
+        discriminator_out = self.netD(fake_and_real_img,
+                                      segmap=torch.cat((input_semantics, input_semantics), dim=0))
 
         fake_feats, fake_preds, real_feats, real_preds = self.divide_pred(discriminator_out)
 
@@ -225,26 +259,47 @@ class Pix2PixModel(torch.nn.Module):
         real_feats = []
         real_preds = []
         for p in pred[0]:
-            fake_feats.append(p[:p.size(0)//2])
-            real_feats.append(p[p.size(0)//2:])
+            fake_feats.append(p[:p.size(0) // 2])
+            real_feats.append(p[p.size(0) // 2:])
         for p in pred[1]:
-            fake_preds.append(p[:p.size(0)//2])
-            real_preds.append(p[p.size(0)//2:])
+            fake_preds.append(p[:p.size(0) // 2])
+            real_preds.append(p[p.size(0) // 2:])
 
         return fake_feats, fake_preds, real_feats, real_preds
 
+    def get_edge1(self, x, t, pad):
+        a = (t[:, :, :, 1:] != t[:, :, :, :-1]).float()
+        a = F.pad(a, pad, mode="constant", value=0)
+        t = (x + a)
+        t[t > 1] = 1
+        return t
+
+    def get_edge2(self, x, t, pad):
+        a = (t[:, :, 1:, :] != t[:, :, :-1, :]).float()
+        a = F.pad(a, pad, mode="constant", value=0)
+        t = (x + a)
+        t[t > 1] = 1
+        return t
 
     def get_edges(self, t):
         print("t", t.shape)
-        edge = torch.zeros_like(t, dtype=torch.bool).to(t.device) # for PyTorch versions higher than 1.2.0, use BoolTensor instead of ByteTensor
-        edge[:, :, :, 1:] = edge[:, :, :, 1:] | (t[:, :, :, 1:] != t[:, :, :, :-1])
-        edge[:, :, :, :-1] = edge[:, :, :, :-1] | (t[:, :, :, 1:] != t[:, :, :, :-1])
-        edge[:, :, 1:, :] = edge[:, :, 1:, :] | (t[:, :, 1:, :] != t[:, :, :-1, :])
-        edge[:, :, :-1, :] = edge[:, :, :-1, :] | (t[:, :, 1:, :] != t[:, :, :-1, :])
-        return edge.float()
+        # edge = torch.zeros_like(t, dtype=torch.bool).to(
+        #     t.device)  # for PyTorch versions higher than 1.2.0, use BoolTensor instead of ByteTensor
+        # edge[:, :, :, 1:] = edge[:, :, :, 1:] | (t[:, :, :, 1:] != t[:, :, :, :-1])
+        # edge[:, :, :, :-1] = edge[:, :, :, :-1] | (t[:, :, :, 1:] != t[:, :, :, :-1])
+        # edge[:, :, 1:, :] = edge[:, :, 1:, :] | (t[:, :, 1:, :] != t[:, :, :-1, :])
+        # edge[:, :, :-1, :] = edge[:, :, :-1, :] | (t[:, :, 1:, :] != t[:, :, :-1, :])
+
+        edge1 = torch.zeros_like(t).to(t.device)
+        edge1 = self.get_edge1(edge1, t, pad=(1, 0, 0, 0))
+        edge1 = self.get_edge1(edge1, t, pad=(0, 1, 0, 0))
+        edge1 = self.get_edge2(edge1, t, pad=(0, 0, 1, 0))
+        edge1 = self.get_edge2(edge1, t, pad=(0, 0, 0, 1))
+        return edge1.float()
 
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
+        # eps = torch.randn_like(std)
+        eps = self.eps.to(mu.device)
         return eps.mul(std) + mu
-        #return mu
+        # return mu
