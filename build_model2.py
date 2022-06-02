@@ -579,8 +579,8 @@ def img_preprocess(image, input_shape):
 
 
 if __name__ == '__main__':
-    input_shape = [3, 256, 512]
-    # input_shape = [3, 512, 1024]
+    # input_shape = [3, 256, 512]
+    input_shape = [3, 512, 1024]
     # input_shape = [3, 1024, 2048]
     root = "./sample_images"
     vis = True

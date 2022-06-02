@@ -24,7 +24,7 @@ from onnxsim import simplify
 import onnx
 
 print(onnxruntime.get_device())
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def get_onnx(save_onnx_path, input_shape, isdynamic=True):
@@ -117,6 +117,7 @@ def run_onnx(onnx_path, input_shape):
         t1 = time()
         print("onnx run {} s".format(t1 - t0))
         seg_final, anomaly_score = outputs
+        print("anomaly_score", anomaly_score.flatten()[:20])
 
         # 可视化diss_pred
         diss_pred_img = anomaly_score[0]
@@ -140,10 +141,10 @@ if __name__ == '__main__':
     # save_onnx_path = "./model/synboost_b2_h256w512.onnx"
     # save_onnx_path = "./model/synboost_dynamic_batch_h256w512_bool.onnx"
     # save_onnx_path = "optimized_model.onnx"
-    save_onnx_path = "/zhoudu/workspaces/obstacle_det/actcommon/install/models/facerecog.road_obstacle_dect/seg_syn_vgg_entropy_b1h256w512.onnx"
+    save_onnx_path = "/zhoudu/workspaces/obstacle_det/actcommon/install/models/facerecog.road_obstacle_dect/obs_cuda0_b1h512w1024.onnx"
     isdynamic = False
-    # input_shape = [3, 512, 1024]  # c, h, w
-    input_shape = [3, 256, 512]  # c, h, w
+    input_shape = [3, 512, 1024]  # c, h, w
+    # input_shape = [3, 256, 512]  # c, h, w
     # if not os.path.exists(save_onnx_path):
-    # get_onnx(save_onnx_path, input_shape, isdynamic)
-    run_onnx(save_onnx_path, input_shape)
+    get_onnx(save_onnx_path, input_shape, isdynamic)
+    # run_onnx(save_onnx_path, input_shape)
