@@ -6,7 +6,7 @@ from natsort import natsorted
 
 import sys
 sys.path.append("..")
-import data.cityscapes_labels as cityscapes_labels
+import image_dissimilarity.data.cityscapes_labels as cityscapes_labels
 
 trainid_to_name = cityscapes_labels.trainId2name
 id_to_trainid = cityscapes_labels.label2trainid

@@ -5,9 +5,10 @@ import os
 import torch.backends.cudnn as cudnn
 import torch
 
-from util import trainer_util, metrics
-from util.temperature_scaling import ModelWithTemperature
-from models.dissimilarity_model import DissimNet, GuidedDissimNet, ResNetDissimNet, CorrelatedDissimNet
+from image_dissimilarity.util import trainer_util, metrics
+from image_dissimilarity.util.temperature_scaling import ModelWithTemperature
+from image_dissimilarity.models.dissimilarity_model import DissimNet, GuidedDissimNet, ResNetDissimNet, \
+    CorrelatedDissimNet
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, help='Path to the config file.')
@@ -61,8 +62,8 @@ if pretrain_config['load']:
     diss_model.load_state_dict(model_weights, strict=False)
     # NOTE: For old models, there were some correlation weights created that were not used in the foward pass. That's the reason to include strict=False
 
-orig_model = diss_model # create an uncalibrated model somehow
-valid_loader = test_loader1 # Create a DataLoader from the SAME VALIDATION SET used to train orig_model
+orig_model = diss_model  # create an uncalibrated model somehow
+valid_loader = test_loader1  # Create a DataLoader from the SAME VALIDATION SET used to train orig_model
 
 scaled_model = ModelWithTemperature(orig_model)
 scaled_model.set_temperature(valid_loader)

@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 ## Creates SPADE normalization layer based on the given configuration
 ## SPADE consists of two steps. First, it normalizes the activations using
 ## your favorite normalization method, such as Batch Norm or Instance Norm.
@@ -13,22 +14,22 @@ import torch.nn.functional as F
 class SPADE(nn.Module):
     def __init__(self, norm_nc, label_nc):
         super().__init__()
-        
+
         ks = 3
         self.param_free_norm = nn.InstanceNorm2d(norm_nc, affine=False)
         self.param_free_norm.weight = nn.Parameter(torch.ones(norm_nc))
         self.param_free_norm.bias = nn.Parameter(torch.zeros(norm_nc))
-        
+
         # The dimension of the intermediate embedding space. Yes, hardcoded.
         nhidden = 128
-        
+
         pw = ks // 2
         self.shared = nn.Sequential(
             nn.Conv2d(label_nc, nhidden, kernel_size=ks, padding=pw),
             nn.ReLU())
         self.gamma = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=pw)
         self.beta = nn.Conv2d(nhidden, norm_nc, kernel_size=ks, padding=pw)
-    
+
     def forward(self, x, segmap):
         # Part 1. generate parameter-free normalized activations
         normalized = self.param_free_norm(x)
@@ -39,80 +40,80 @@ class SPADE(nn.Module):
         actv = self.shared(segmap)
         gamma = self.gamma(actv)
         beta = self.beta(actv)
-        
+
         # apply scale and bias
         out = normalized * (1 + gamma) + beta
-        
+
         return out
 
 
 class FILM(nn.Module):
     def __init__(self, nc, guide_nc):
         super().__init__()
-        
+
         ks = 3
         # The dimension of the intermediate embedding space. Yes, hardcoded.
         nhidden = 128
-        
+
         pw = ks // 2
         self.shared = nn.Sequential(
             nn.Conv2d(guide_nc, nhidden, kernel_size=ks, padding=pw),
             nn.ReLU())
         self.gamma = nn.Conv2d(nhidden, nc, kernel_size=ks, padding=pw)
         self.beta = nn.Conv2d(nhidden, nc, kernel_size=ks, padding=pw)
-    
+
     def forward(self, x, guide):
         if x.size()[2] != guide.size()[2]:
             guide = F.interpolate(guide, size=x.size()[2:], mode='nearest')
         actv = self.shared(guide)
         gamma = self.gamma(actv)
         beta = self.beta(actv)
-        
+
         # apply scale and bias
         out = affine_transformation(x, gamma, beta)
-        
+
         return out
 
 
 class GuideCorrelation(nn.Module):
     def __init__(self, nc, guide_nc):
         super().__init__()
-        
+
         ks = 3
         # The dimension of the intermediate embedding space. Yes, hardcoded.
         nhidden = 128
-        
+
         pw = ks // 2
         self.shared = nn.Sequential(
             nn.Conv2d(guide_nc, nhidden, kernel_size=ks, padding=pw),
             nn.ReLU())
         self.gamma = nn.Conv2d(nhidden, nc, kernel_size=ks, padding=pw)
         self.beta = nn.Conv2d(nhidden, nc, kernel_size=ks, padding=pw)
-    
+
     def forward(self, x, guide):
-    
         # Part 2. produce scaling and bias conditioned on semantic map
         if x.size()[2] != guide.size()[2]:
             guide = F.interpolate(guide, size=x.size()[2:], mode='nearest')
         actv = self.shared(guide)
         gamma = self.gamma(actv)
         beta = self.beta(actv)
-        
+
         return gamma, beta
+
 
 class GuideNormalization(nn.Module):
     def __init__(self, nc):
         super().__init__()
-        
+
         self.param_free_norm = nn.InstanceNorm2d(nc, affine=False)
-    
+
     def forward(self, x, gamma1, beta1, gamma2, beta2):
         normalized = self.param_free_norm(x)
 
         gamma = gamma1 * gamma2
-        beta = beta1*beta2
+        beta = beta1 * beta2
         out = normalized * (1 + gamma) + beta
-        
+
         return out
 
 

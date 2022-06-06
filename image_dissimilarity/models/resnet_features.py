@@ -2,9 +2,7 @@ import torch
 import torch.nn as nn
 from torch.utils.model_zoo import load_url as load_state_dict_from_url
 
-
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101']
-
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
@@ -194,7 +192,7 @@ class ResNet(nn.Module):
         x3 = self.layer3(x2)
         x4 = self.layer4(x3)
 
-        return [x1,x2,x3,x4]
+        return [x1, x2, x3, x4]
 
     def forward(self, x):
         return self._forward_impl(x)
@@ -233,26 +231,25 @@ def resnet34(pretrained=False, progress=True, **kwargs):
                    **kwargs)
 
 
-
 def resnet(architecture='resnet18', pretrained=True):
-    if architecture=='resnet18':
+    if architecture == 'resnet18':
         model = _resnet('resnet18', BasicBlock, [2, 2, 2, 2], pretrained, True)
-    elif architecture=='resnet34':
+    elif architecture == 'resnet34':
         model = _resnet(architecture, BasicBlock, [3, 4, 6, 3], pretrained, True)
-    elif architecture=='resnet50':
+    elif architecture == 'resnet50':
         model = _resnet(architecture, Bottleneck, [3, 4, 6, 3], pretrained, True)
-    elif architecture=='resnet101':
+    elif architecture == 'resnet101':
         model = _resnet(architecture, Bottleneck, [3, 4, 23, 3], pretrained, True)
     else:
         NotImplementedError()
-        
+
     return model
-        
+
 
 if __name__ == "__main__":
     from PIL import Image
     import torchvision.transforms as transforms
-    
+
     img = Image.open('../../sample_images/zm0002_100000.png')
     resnet_features = resnet(architecture='resnet18', pretrained=True)
     img_transform = transforms.Compose([transforms.ToTensor()])

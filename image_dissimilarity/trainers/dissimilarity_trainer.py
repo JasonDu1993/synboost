@@ -5,9 +5,11 @@ import torch.backends.cudnn as cudnn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 import sys
+
 sys.path.append("..")
 from image_dissimilarity.util import trainer_util
 from image_dissimilarity.models.dissimilarity_model import DissimNet, DissimNetPrior
+
 
 class DissimilarityTrainer():
     """
@@ -17,17 +19,17 @@ class DissimilarityTrainer():
     """
 
     def __init__(self, config, seed=0):
-        
+
         trainer_util.set_seed(seed)
-        
+
         cudnn.enabled = True
         self.config = config
-        
+
         if config['gpu_ids'] != -1:
             self.gpu = 'cuda'
         else:
             self.gpu = 'cpu'
-        
+
         if config['model']['prior']:
             self.diss_model = DissimNetPrior(**config['model']).cuda(self.gpu)
         elif 'vgg' in config['model']['architecture']:
@@ -47,15 +49,15 @@ class DissimilarityTrainer():
             model_weights = torch.load(model_path)
             self.diss_model.load_state_dict(model_weights, strict=False)
             # NOTE: For old models, there were some correlation weights created that were not used in the foward pass. That's the reason to include strict=False
-            
+
         print('Printing Model Parameters')
         print(self.diss_model.parameters)
-        
+
         lr_config = config['optimizer']
         lr_options = lr_config['parameters']
         if lr_config['algorithm'] == 'SGD':
             self.optimizer = torch.optim.SGD(self.diss_model.parameters(), lr=lr_options['lr'],
-                                             weight_decay=lr_options['weight_decay'],)
+                                             weight_decay=lr_options['weight_decay'], )
         elif lr_config['algorithm'] == 'Adam':
             self.optimizer = torch.optim.Adam(self.diss_model.parameters(),
                                               lr=lr_options['lr'],
@@ -63,21 +65,23 @@ class DissimilarityTrainer():
                                               betas=(lr_options['beta1'], lr_options['beta2']))
         else:
             raise NotImplementedError
-        
+
         if lr_options['lr_policy'] == 'ReduceLROnPlateau':
-            self.scheduler = ReduceLROnPlateau(self.optimizer, 'min', patience=lr_options['patience'], factor=lr_options['factor'])
+            self.scheduler = ReduceLROnPlateau(self.optimizer, 'min', patience=lr_options['patience'],
+                                               factor=lr_options['factor'])
         else:
             raise NotImplementedError
-        
+
         self.old_lr = lr_options['lr']
-        
+
         if config['training_strategy']['class_weight']:
             if not config['training_strategy']['class_weight_cityscapes']:
                 if config['train_dataloader']['dataset_args']['void']:
-                    label_path = os.path.join(config['train_dataloader']['dataset_args']['dataroot'], 'labels_with_void_no_ego/')
+                    label_path = os.path.join(config['train_dataloader']['dataset_args']['dataroot'],
+                                              'labels_with_void_no_ego/')
                 else:
                     label_path = os.path.join(config['train_dataloader']['dataset_args']['dataroot'], 'labels/')
-                    
+
                 full_loader = trainer_util.loader(label_path, batch_size='all')
                 print('Getting class weights for cross entropy loss. This might take some time.')
                 class_weights = trainer_util.get_class_weights(full_loader, num_classes=2)
@@ -87,10 +91,11 @@ class DissimilarityTrainer():
                 else:
                     class_weights = [1.46494611, 16.5204619]
             print('Using the following weights for each respective class [0,1]:', class_weights)
-            self.criterion = nn.CrossEntropyLoss(ignore_index=255, weight=torch.FloatTensor(class_weights).to("cuda")).cuda(self.gpu)
+            self.criterion = nn.CrossEntropyLoss(ignore_index=255,
+                                                 weight=torch.FloatTensor(class_weights).to("cuda")).cuda(self.gpu)
         else:
             self.criterion = nn.CrossEntropyLoss(ignore_index=255).cuda(self.gpu)
-        
+
     def run_model_one_step(self, original, synthesis, semantic, label):
         self.optimizer.zero_grad()
         predictions = self.diss_model(original, synthesis, semantic)
@@ -100,7 +105,7 @@ class DissimilarityTrainer():
         self.model_losses = model_loss
         self.generated = predictions
         return model_loss, predictions
-        
+
     def run_validation(self, original, synthesis, semantic, label):
         predictions = self.diss_model(original, synthesis, semantic)
         model_loss = self.criterion(predictions, label.type(torch.LongTensor).squeeze(dim=1).cuda())
@@ -130,7 +135,7 @@ class DissimilarityTrainer():
     def save(self, save_dir, epoch, name):
         if not os.path.isdir(os.path.join(save_dir, name)):
             os.mkdir(os.path.join(save_dir, name))
-        
+
         save_filename = '%s_net_%s.pth' % (epoch, name)
         save_path = os.path.join(save_dir, name, save_filename)
         torch.save(self.diss_model.state_dict(), save_path)  # net.cpu() -> net
@@ -151,15 +156,16 @@ class DissimilarityTrainer():
                 param_group['lr'] = new_lr
             print('update learning rate: %f -> %f' % (self.old_lr, new_lr))
             self.old_lr = new_lr
-            
+
     def update_learning_rate_schedule(self, val_loss):
         self.scheduler.step(val_loss)
         lr = [group['lr'] for group in self.optimizer.param_groups][0]
-        print('Current learning rate is set for %f' %lr)
+        print('Current learning rate is set for %f' % lr)
+
 
 if __name__ == "__main__":
     import yaml
-    
+
     config = '../configs/default_configuration.yaml'
     gpu_ids = 0
 

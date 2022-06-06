@@ -8,6 +8,7 @@ from torchvision import transforms
 import torch
 
 import sys
+
 sys.path.append("../..")
 import image_dissimilarity.data.cityscapes_labels as cityscapes_labels
 from image_dissimilarity.data.augmentations import get_transform
@@ -15,45 +16,47 @@ from image_dissimilarity.data.augmentations import get_transform
 trainid_to_name = cityscapes_labels.trainId2name
 id_to_trainid = cityscapes_labels.label2trainid
 
-def troubleshoot_data(dataroot, preprocess_mode, crop_size=512, aspect_ratio= 0.5, flip=False, normalize=False,
-                 prior = False, only_valid = False, roi = False, light_data= False, void = False, num_semantic_classes = 19, is_train = True):
+
+def troubleshoot_data(dataroot, preprocess_mode, crop_size=512, aspect_ratio=0.5, flip=False, normalize=False,
+                      prior=False, only_valid=False, roi=False, light_data=False, void=False, num_semantic_classes=19,
+                      is_train=True):
     original_paths = [os.path.join(dataroot, 'original', image)
-                           for image in os.listdir(os.path.join(dataroot, 'original'))]
+                      for image in os.listdir(os.path.join(dataroot, 'original'))]
     if light_data:
         semantic_paths = [os.path.join(dataroot, 'semantic_icnet', image)
-                               for image in os.listdir(os.path.join(dataroot, 'semantic_icnet'))]
+                          for image in os.listdir(os.path.join(dataroot, 'semantic_icnet'))]
         synthesis_paths = [os.path.join(dataroot, 'synthesis_spade', image)
-                                for image in os.listdir(os.path.join(dataroot, 'synthesis_spade'))]
+                           for image in os.listdir(os.path.join(dataroot, 'synthesis_spade'))]
     else:
         semantic_paths = [os.path.join(dataroot, 'semantic', image)
-                               for image in os.listdir(os.path.join(dataroot, 'semantic'))]
+                          for image in os.listdir(os.path.join(dataroot, 'semantic'))]
         synthesis_paths = [os.path.join(dataroot, 'synthesis', image)
-                                for image in os.listdir(os.path.join(dataroot, 'synthesis'))]
+                           for image in os.listdir(os.path.join(dataroot, 'synthesis'))]
     if roi:
         label_paths = [os.path.join(dataroot, 'labels_with_ROI', image)
-                            for image in os.listdir(os.path.join(dataroot, 'labels_with_ROI'))]
+                       for image in os.listdir(os.path.join(dataroot, 'labels_with_ROI'))]
     elif void:
         label_paths = [os.path.join(dataroot, 'labels_with_void_no_ego', image)
-                            for image in os.listdir(os.path.join(dataroot, 'labels_with_void_no_ego'))]
+                       for image in os.listdir(os.path.join(dataroot, 'labels_with_void_no_ego'))]
     else:
         label_paths = [os.path.join(dataroot, 'labels', image)
-                            for image in os.listdir(os.path.join(dataroot, 'labels'))]
+                       for image in os.listdir(os.path.join(dataroot, 'labels'))]
     if prior:
         if light_data:
             mae_features_paths = [os.path.join(dataroot, 'mae_features_spade', image)
-                                       for image in os.listdir(os.path.join(dataroot, 'mae_features_spade'))]
+                                  for image in os.listdir(os.path.join(dataroot, 'mae_features_spade'))]
             entropy_paths = [os.path.join(dataroot, 'entropy_icnet', image)
-                                  for image in os.listdir(os.path.join(dataroot, 'entropy_icnet'))]
+                             for image in os.listdir(os.path.join(dataroot, 'entropy_icnet'))]
             logit_distance_paths = [os.path.join(dataroot, 'logit_distance_icnet', image)
-                                         for image in os.listdir(os.path.join(dataroot, 'logit_distance_icnet'))]
+                                    for image in os.listdir(os.path.join(dataroot, 'logit_distance_icnet'))]
         else:
             mae_features_paths = [os.path.join(dataroot, 'mae_features', image)
-                                       for image in os.listdir(os.path.join(dataroot, 'mae_features'))]
+                                  for image in os.listdir(os.path.join(dataroot, 'mae_features'))]
             entropy_paths = [os.path.join(dataroot, 'entropy', image)
-                                  for image in os.listdir(os.path.join(dataroot, 'entropy'))]
+                             for image in os.listdir(os.path.join(dataroot, 'entropy'))]
             logit_distance_paths = [os.path.join(dataroot, 'logit_distance', image)
-                                         for image in os.listdir(os.path.join(dataroot, 'logit_distance'))]
-    
+                                    for image in os.listdir(os.path.join(dataroot, 'logit_distance'))]
+
     # We need to sort the images to ensure all the pairs match with each other
     original_paths = natsorted(original_paths)
     semantic_paths = natsorted(semantic_paths)
@@ -63,7 +66,6 @@ def troubleshoot_data(dataroot, preprocess_mode, crop_size=512, aspect_ratio= 0.
         mae_features_paths = natsorted(mae_features_paths)
         entropy_paths = natsorted(entropy_paths)
         logit_distance_paths = natsorted(logit_distance_paths)
-    
 
     index = 0
 
@@ -83,14 +85,15 @@ def troubleshoot_data(dataroot, preprocess_mode, crop_size=512, aspect_ratio= 0.
     if prior:
         mae_path = mae_features_paths[index]
         mae_image = Image.open(mae_path)
-    
+
         entropy_path = entropy_paths[index]
         entropy_image = Image.open(entropy_path)
-    
+
         distance_path = logit_distance_paths[index]
         distance_image = Image.open(distance_path)
-    
-    import pdb; pdb.set_trace()
+
+    import pdb;
+    pdb.set_trace()
     # get input for transformations
     w = crop_size
     h = round(crop_size / aspect_ratio)
@@ -143,11 +146,12 @@ def troubleshoot_data(dataroot, preprocess_mode, crop_size=512, aspect_ratio= 0.
 
     return input_dict
 
+
 def one_hot_encoding(semantic, num_classes=20):
     one_hot = torch.zeros(num_classes, semantic.size(1), semantic.size(2))
     for class_id in range(num_classes):
-        one_hot[class_id,:,:] = (semantic.squeeze(0)==class_id)
-    one_hot = one_hot[:num_classes-1,:,:]
+        one_hot[class_id, :, :] = (semantic.squeeze(0) == class_id)
+    one_hot = one_hot[:num_classes - 1, :, :]
     return one_hot
 
 

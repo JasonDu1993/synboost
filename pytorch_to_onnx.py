@@ -30,7 +30,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 def get_onnx(save_onnx_path, input_shape, isdynamic=True):
     print("save_onnx_path: {}".format(save_onnx_path))
     c, h, w = input_shape
-    from build_model2 import RoadAnomalyDetector
+    from build_model import RoadAnomalyDetector
     os.makedirs(os.path.dirname(save_onnx_path), exist_ok=True)
     model = RoadAnomalyDetector(True, input_shape=(c, h, w))
     remove_all_spectral_norm(model)

@@ -12,12 +12,12 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import make_grid
 from torchvision.transforms import ToPILImage, ToTensor
 
-from trainers.dissimilarity_trainer import DissimilarityTrainer
-from util import trainer_util
-from util import trainer_util, metrics
-from util.iter_counter import IterationCounter
-from util.image_logging import ImgLogging
-from util import visualization
+from image_dissimilarity.trainers.dissimilarity_trainer import DissimilarityTrainer
+from image_dissimilarity.util import trainer_util
+from image_dissimilarity.util import trainer_util, metrics
+from image_dissimilarity.util.iter_counter import IterationCounter
+from image_dissimilarity.util.image_logging import ImgLogging
+from image_dissimilarity.util import visualization
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, help='Path to the config file.')

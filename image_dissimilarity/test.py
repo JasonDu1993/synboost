@@ -9,9 +9,9 @@ from sklearn import metrics
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from util import trainer_util, metrics
-from util.iter_counter import IterationCounter
-from models.dissimilarity_model import DissimNet, DissimNetPrior
+from image_dissimilarity.util import trainer_util, metrics
+from image_dissimilarity.util.iter_counter import IterationCounter
+from image_dissimilarity.models.dissimilarity_model import DissimNet, DissimNetPrior
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, help='Path to the config file.')
@@ -107,9 +107,9 @@ with torch.no_grad():
         else:
             soft_pred = outputs[:, 1, :, :]
         flat_pred[i * w * h:i * w * h +
-                  w * h] = torch.flatten(soft_pred).detach().cpu().numpy()
+                            w * h] = torch.flatten(soft_pred).detach().cpu().numpy()
         flat_labels[i * w * h:i * w * h +
-                    w * h] = torch.flatten(label).detach().cpu().numpy()
+                              w * h] = torch.flatten(label).detach().cpu().numpy()
         # Save results
         predicted_tensor = predictions * 1
         label_tensor = label * 1

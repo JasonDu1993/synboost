@@ -5,11 +5,13 @@ from PIL import Image
 from natsort import natsorted
 
 import sys
+
 sys.path.append("..")
-import data.cityscapes_labels as cityscapes_labels
+import image_dissimilarity.data.cityscapes_labels as cityscapes_labels
 
 trainid_to_name = cityscapes_labels.trainId2name
 id_to_trainid = cityscapes_labels.label2trainid
+
 
 def convert_gtCoarse_to_labels(data_path, save_dir):
     if not os.path.isdir(os.path.join(save_dir, 'labels')):
@@ -31,7 +33,8 @@ def convert_gtCoarse_to_labels(data_path, save_dir):
         mask_img = Image.fromarray((mask).astype(np.uint8))
         semantic_name = os.path.basename(semantic)
         mask_img.save(os.path.join(save_dir, 'labels', semantic_name))
-        
+
+
 def convert_semantic_to_trainids(semantic_path, save_dir):
     if not os.path.isdir(os.path.join(save_dir, 'semantic')):
         os.mkdir(os.path.join(save_dir, 'semantic'))
@@ -55,7 +58,8 @@ def convert_semantic_to_trainids(semantic_path, save_dir):
 
         semantic_name = os.path.basename(semantic)
         semantic_img.save(os.path.join(save_dir, 'semantic', semantic_name))
-        
+
+
 def convert_gtCoarse_to_labels_ROI(data_path, save_dir):
     if not os.path.isdir(os.path.join(save_dir, 'labels_with_ROI')):
         os.mkdir(os.path.join(save_dir, 'labels_with_ROI'))
@@ -83,8 +87,8 @@ def convert_gtCoarse_to_labels_ROI(data_path, save_dir):
 
 if __name__ == '__main__':
     data_path = '/media/giancarlo/Samsung_T5/master_thesis/data/lost_and_found/post-process/L&F_TrainID_labels'
-    #save_dir = '/media/giancarlo/Samsung_T5/master_thesis/data/lost_and_found/post-process'
-    #convert_gtCoarse_to_labels(data_path, save_dir)
+    # save_dir = '/media/giancarlo/Samsung_T5/master_thesis/data/lost_and_found/post-process'
+    # convert_gtCoarse_to_labels(data_path, save_dir)
 
-    #semantic_path = '/media/giancarlo/Samsung_T5/master_thesis/data/lost_and_found/post-process/semantic_labelids'
-    #convert_semantic_to_trainids(semantic_path, save_dir)
+    # semantic_path = '/media/giancarlo/Samsung_T5/master_thesis/data/lost_and_found/post-process/semantic_labelids'
+    # convert_semantic_to_trainids(semantic_path, save_dir)

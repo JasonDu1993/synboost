@@ -7,6 +7,7 @@ from imgaug import parameters as iap
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
+
 # defines all the different types of transformations
 class OnlyApplyBlurs:
     def __init__(self):
@@ -65,9 +66,10 @@ class OnlyApplyBlursAggressive:
 class OnlyChangeContrast:
     def __init__(self):
         self.aug = iaa.Sequential(
-            [iaa.Sometimes(0.25, iaa.OneOf([iaa.contrast.LinearContrast(alpha=iap.Choice(np.arange(0, 3, 0.5).tolist())),
-                                            iaa.SigmoidContrast(gain=iap.Choice(np.arange(0, 3, 1).tolist()),
-                                                                cutoff=iap.Choice(np.arange(0, 0.6, 0.10).tolist()))])),
+            [iaa.Sometimes(0.25,
+                           iaa.OneOf([iaa.contrast.LinearContrast(alpha=iap.Choice(np.arange(0, 3, 0.5).tolist())),
+                                      iaa.SigmoidContrast(gain=iap.Choice(np.arange(0, 3, 1).tolist()),
+                                                          cutoff=iap.Choice(np.arange(0, 0.6, 0.10).tolist()))])),
              ])
 
     def __call__(self, img):
@@ -184,14 +186,15 @@ def __flip(img, flip):
         return img.transpose(Image.FLIP_LEFT_RIGHT)
     return img
 
+
 def get_transform(image_size, transform_name='blurs'):
     # uses ImageNet mean and standard deviation to normalize images
     norm_mean = [0.485, 0.456, 0.406]
     norm_std = [0.229, 0.224, 0.225]
 
     my_transforms = dict()
-    #common_transforms = [transforms.Normalize(norm_mean, norm_std)]
-    common_transforms = [transforms.Resize(size=image_size, interpolation=Image.NEAREST),transforms.ToTensor()]
+    # common_transforms = [transforms.Normalize(norm_mean, norm_std)]
+    common_transforms = [transforms.Resize(size=image_size, interpolation=Image.NEAREST), transforms.ToTensor()]
     my_transforms['none'] = []
     my_transforms['base'] = transforms.Compose(common_transforms)
     my_transforms['normalization'] = transforms.Compose(common_transforms)

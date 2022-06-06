@@ -5,7 +5,6 @@ import os
 from natsort import natsorted
 from PIL import Image
 
-
 IMG_EXTENSIONS = [
     '.jpg', '.JPG', '.jpeg', '.JPEG',
     '.png', '.PNG', '.ppm', '.PPM', '.bmp', '.BMP', '.tiff', '.webp'
@@ -56,8 +55,9 @@ def make_dataset(dir, recursive=False, read_cache=False, write_cache=False):
             print('wrote filelist cache at %s' % filelist_cache)
 
     return images
-def get_mapillary_labels(data_dir, data_type, save_dir):
 
+
+def get_mapillary_labels(data_dir, data_type, save_dir):
     # read in config file
     config_file = os.path.join(data_dir, 'config.json')
     with open(config_file) as config_file:
@@ -69,16 +69,16 @@ def get_mapillary_labels(data_dir, data_type, save_dir):
                                                                 label["instances"]))
     # labels to show
     void_labels = [0, 1, 32, 33, 35, 42, 43, 51, 53, 63, 65]
-    #void_labels = [65]
+    # void_labels = [65]
 
-     # create save folder
+    # create save folder
     if not os.path.isdir(save_dir):
         os.mkdir(save_dir)
 
     # find label images
     label_path = os.path.join(data_dir, data_type, 'labels')
     label_paths = [os.path.join(label_path, image)
-                      for image in os.listdir(label_path)]
+                   for image in os.listdir(label_path)]
     label_paths = natsorted(label_paths)
 
     for idx, label in enumerate(label_paths):
@@ -99,7 +99,6 @@ def get_mapillary_labels(data_dir, data_type, save_dir):
 
 
 def get_cityscapes_labels(data_dir, data_type, save_dir):
-
     # labels to show
     void_labels = [5]
 
@@ -130,8 +129,8 @@ def get_cityscapes_labels(data_dir, data_type, save_dir):
             label_name = os.path.basename(label)
             mask_img.save(os.path.join(save_dir, label_name))
 
-def get_wild_dash_labels(data_dir, save_dir):
 
+def get_wild_dash_labels(data_dir, save_dir):
     # labels to show
     void_labels = [5]
 
@@ -163,7 +162,6 @@ def get_wild_dash_labels(data_dir, save_dir):
 
 
 def get_cityscapes_labels_dynamic(data_dir, data_type, save_dir):
-
     # labels to show
     void_labels = [5]
 
@@ -182,7 +180,7 @@ def get_cityscapes_labels_dynamic(data_dir, data_type, save_dir):
                       for image in os.listdir(semantic_path)]
 
     synthesis_paths = [os.path.join(synthesis_path, image)
-                      for image in os.listdir(synthesis_path)]
+                       for image in os.listdir(synthesis_path)]
 
     original_paths = [os.path.join(original_path, image)
                       for image in os.listdir(original_path)]
@@ -192,7 +190,8 @@ def get_cityscapes_labels_dynamic(data_dir, data_type, save_dir):
     synthesis_paths = natsorted(synthesis_paths)
     semantic_paths = natsorted(semantic_paths)
 
-    for idx, (label, original, semantic, synthesis) in enumerate(zip(label_paths, original_paths, semantic_paths, synthesis_paths)):
+    for idx, (label, original, semantic, synthesis) in enumerate(
+            zip(label_paths, original_paths, semantic_paths, synthesis_paths)):
         print('Generating image %i our of %i' % (idx + 1, len(label_paths)))
         # load images
         label_image = Image.open(label)
@@ -213,20 +212,21 @@ def get_cityscapes_labels_dynamic(data_dir, data_type, save_dir):
             os.remove(semantic)
             os.remove(synthesis)
 
+
 if __name__ == "__main__":
-    #data_dir = '/media/giandbt/Samsung_T5/data/Mapillary_Vistas'
-    #data_type = 'validation'
-    #save_dir = '/home/giandbt/Documents/mapillary_postprocess/labels'
-    #get_mapillary_labels(data_dir, data_type, save_dir)
+    # data_dir = '/media/giandbt/Samsung_T5/data/Mapillary_Vistas'
+    # data_type = 'validation'
+    # save_dir = '/home/giandbt/Documents/mapillary_postprocess/labels'
+    # get_mapillary_labels(data_dir, data_type, save_dir)
 
-    #data_dir = '/media/giandbt/Samsung_T5/data/cityscapes'
-    #data_type = 'train'
-    #save_dir = '/home/giandbt/Documents/cityscapes_postprocess/labels'
-    #get_cityscapes_labels(data_dir, data_type, save_dir)
+    # data_dir = '/media/giandbt/Samsung_T5/data/cityscapes'
+    # data_type = 'train'
+    # save_dir = '/home/giandbt/Documents/cityscapes_postprocess/labels'
+    # get_cityscapes_labels(data_dir, data_type, save_dir)
 
-    #data_dir = '/home/giandbt/Documents/data/master_thesis/wild_dash'
-    #save_dir = '/home/giandbt/Documents/wilddash_postprocess/labels'
-    #get_wild_dash_labels(data_dir, save_dir)
+    # data_dir = '/home/giandbt/Documents/data/master_thesis/wild_dash'
+    # save_dir = '/home/giandbt/Documents/wilddash_postprocess/labels'
+    # get_wild_dash_labels(data_dir, save_dir)
 
     data_dir = '/media/giandbt/Samsung_T5/data/cityscapes'
     data_type = 'train'

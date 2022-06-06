@@ -7,7 +7,7 @@ from estimator import AnomalyDetector
 import numpy as np
 from log_util import get_root_logger
 from time import time
-from build_model2 import RoadAnomalyDetector
+from build_model import RoadAnomalyDetector
 from total_utils.seg_to_rect import postprocessing
 from total_utils.draw_box_util import draw_total_box
 

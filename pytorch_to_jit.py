@@ -23,7 +23,7 @@ from total_utils.draw_box_util import draw_total_box
 def get_jit(save_path, input_shape):
     print("save_jit_path: {}".format(save_path))
     c, h, w = input_shape
-    from build_model2 import RoadAnomalyDetector
+    from build_model import RoadAnomalyDetector
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     model = RoadAnomalyDetector(True, input_shape=(c, h, w))
 
