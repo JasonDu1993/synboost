@@ -23,7 +23,7 @@ dataset:
 # parameters for dataloaders
 test_dataloader:
   dataset_args:
-    dataroot: /workspace/data/road_obstacles/synboost/final_dataset/road_anomaly
+    dataroot: /zhouyafei/workspace/data/road_obstacles/synboost/final_dataset/road_anomaly
     preprocess_mode: none
     crop_size: 512
     aspect_ratio: 2

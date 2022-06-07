@@ -17,6 +17,7 @@ import random
 from options.config_class import Config
 import cv2
 import time as t
+from torchvision.transforms.functional import InterpolationMode
 
 import sys
 
@@ -94,7 +95,7 @@ class RoadAnomalyDetector(nn.Module):
         one_hot = one_hot[:, :num_classes - 1, :, :]
         return one_hot
 
-    def pytorch_resize_totensor(self, x, size=(256, 512), mul=1, interpolation=Image.NEAREST, totensor=True):
+    def pytorch_resize_totensor(self, x, size=(256, 512), mul=1, interpolation=InterpolationMode.NEAREST, totensor=True):
         if isinstance(x, Image.Image):
             x = np.array(x).transpose((2, 0, 1))
             x = torch.from_numpy(x)
@@ -132,7 +133,7 @@ class RoadAnomalyDetector(nn.Module):
         # 0 segnet img origin
         # img_tensor = self.img_transform(img)
         # 0 segnet img pytorch
-        # img = self.pytorch_resize_totensor(image, size=(self.h, self.w), mul=1, interpolation=Image.NEAREST, totensor=False)
+        # img = self.pytorch_resize_totensor(image, size=(self.h, self.w), mul=1, interpolation=InterpolationMode.NEAREST, totensor=False)
         # img = torch.from_numpy(img_np_chw).to("cuda:0")
         # img = img.squeeze()
         img_tensor = self.to_tensor(img)
@@ -193,7 +194,7 @@ class RoadAnomalyDetector(nn.Module):
         # 1 label_img pytorch
         label_out = label_out.unsqueeze(1)  # shape [B, 1, H, W]
         label_tensor = self.pytorch_resize_totensor(label_out, size=(256, 512), mul=255,
-                                                    interpolation=Image.NEAREST)  # shape [B, 1, 256, 512]
+                                                    interpolation=InterpolationMode.NEAREST)  # shape [B, 1, 256, 512]
         torch.cuda.synchronize()
         a6 = time()
         print("syn_net preprocess label resize {} s".format(a6 - a5))
@@ -208,7 +209,7 @@ class RoadAnomalyDetector(nn.Module):
         # image_tensor = self.transform_image_syn(img)
         # 2 syn_img_input pytorch
         image_tensor = self.pytorch_resize_totensor(img, size=(256, 512), mul=1,
-                                                    interpolation=Image.BILINEAR)  # shape [B, 3, 256, 512]
+                                                    interpolation=InterpolationMode.BILINEAR)  # shape [B, 3, 256, 512]
         syn_norm = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         image_tensor = syn_norm(image_tensor)
         # np.save("image_syn.npy", image_tensor.cpu().numpy())
@@ -233,7 +234,7 @@ class RoadAnomalyDetector(nn.Module):
         mask = F.pad(mask, [0, 0, 0, 16], mode="constant", value=0.0)
         mask = mask.reshape(mb, mc + 16, mh, mw)
         mask = mask[:, self.id_index, :, :]
-        mask = self.pytorch_resize_totensor(mask, size=(256, 512), mul=1, interpolation=Image.NEAREST,
+        mask = self.pytorch_resize_totensor(mask, size=(256, 512), mul=1, interpolation=InterpolationMode.NEAREST,
                                             totensor=False)  # shape [B, 1, 256, 512]
 
         # run synthesis
@@ -256,7 +257,7 @@ class RoadAnomalyDetector(nn.Module):
         # image_numpy = ((generated + 1) / 2.0) * 255
         image_torch = ((generated + 1) / 2.0) * 255
         syn_image_tensor1 = self.pytorch_resize_totensor(image_torch, size=(256, 512), mul=1,
-                                                         interpolation=Image.NEAREST)  # shape [B, 3, 256, 512]
+                                                         interpolation=InterpolationMode.NEAREST)  # shape [B, 3, 256, 512]
         # 4 diss
         # syn_image_tensor = self.norm_transform_diss(syn_image_tensor).unsqueeze(0).cuda()
         # 4 vgg_diff
@@ -269,21 +270,21 @@ class RoadAnomalyDetector(nn.Module):
         # 5 diss image origin origin
         # image_tensor = self.base_transforms_diss(img)
         # 5 diss image pytorch input12
-        # img2 = self.pytorch_resize_totensor(img, size=(self.h, self.w), mul=1, interpolation=Image.NEAREST,
+        # img2 = self.pytorch_resize_totensor(img, size=(self.h, self.w), mul=1, interpolation=InterpolationMode.NEAREST,
         #                                     totensor=False)
         # img2 = img2.type(torch.uint8).cpu().numpy()
         image_tensor1 = self.pytorch_resize_totensor(img, size=(256, 512), mul=1,
-                                                     interpolation=Image.NEAREST)  # shape [B, 3, 256, 512]
+                                                     interpolation=InterpolationMode.NEAREST)  # shape [B, 3, 256, 512]
 
         # 5 diss image pytorch input1
-        # img1 = self.pytorch_resize_totensor(img, size=(self.h, self.w), mul=1, interpolation=Image.NEAREST,
+        # img1 = self.pytorch_resize_totensor(img, size=(self.h, self.w), mul=1, interpolation=InterpolationMode.NEAREST,
         #                                     totensor=False)
         # img1 = img1.permute(1, 2, 0).type(torch.uint8).cpu().numpy()
         # img1 = Image.fromarray(img1.astype(np.uint8))
         # image_tensor2 = self.base_transforms_diss(img1)
 
         # 5 diss image pytorch input2
-        # image_tensor3 = self.pytorch_resize_totensor(img, size=(256, 512), mul=1, interpolation=Image.NEAREST)
+        # image_tensor3 = self.pytorch_resize_totensor(img, size=(256, 512), mul=1, interpolation=InterpolationMode.NEAREST)
 
         # 5 diss
         # image_tensor = self.norm_transform_diss(image_tensor).unsqueeze(0).cuda()
@@ -321,7 +322,7 @@ class RoadAnomalyDetector(nn.Module):
         # perceptual_diff_tensor = self.base_transforms_diss(perceptual_diff).unsqueeze(0).cuda()
         # 6 perceptual_diff pytorch
         perceptual_diff_tensor = self.pytorch_resize_totensor(perceptual_diff, size=(256, 512), mul=1,
-                                                              interpolation=Image.NEAREST)  # shape [B, 1, 256, 512]
+                                                              interpolation=InterpolationMode.NEAREST)  # shape [B, 1, 256, 512]
 
         # 第四步：diss：entropy
         # get entropy
@@ -336,7 +337,7 @@ class RoadAnomalyDetector(nn.Module):
         # 7 entropy pytorch
         entropy = entropy.unsqueeze(1)  # shape [B, 1, 256, 512]
         entropy_tensor = self.pytorch_resize_totensor(entropy, size=(256, 512), mul=1,
-                                                      interpolation=Image.NEAREST)  # shape [B, 1, 256, 512]
+                                                      interpolation=InterpolationMode.NEAREST)  # shape [B, 1, 256, 512]
         # 第四步：diss：distance
         # get softmax distance
         distance, _ = torch.topk(seg_softmax_out, 2, dim=1)  # distance shape [B, 2, H, W]
@@ -353,14 +354,14 @@ class RoadAnomalyDetector(nn.Module):
         # 9 entropy pytorch
         distance = distance.unsqueeze(1)  # shape [B, 1, 256, 512]
         distance_tensor = self.pytorch_resize_totensor(distance, size=(256, 512), mul=1,
-                                                       interpolation=Image.NEAREST)  # shape [B, 1, 256, 512]
+                                                       interpolation=InterpolationMode.NEAREST)  # shape [B, 1, 256, 512]
 
         # 第四步：diss：分割图
         # 3 diss semantic origin
         # semantic_tensor = self.base_transforms_diss(semantic) * 255
         # 3 diss semantic pytorch
         # semantic_tensor = self.pytorch_resize_totensor(seg_final, size=(256, 512), mul=255,
-        #                                                interpolation=Image.NEAREST)  # shape [B, 256, 512]
+        #                                                interpolation=InterpolationMode.NEAREST)  # shape [B, 256, 512]
         # 4 vgg_diff diss syn image origin
         # syn_image_tensor = self.base_transforms_diss(synthesis_final_img)
         # 4 vgg_diff diss syn image pytorch
@@ -370,7 +371,7 @@ class RoadAnomalyDetector(nn.Module):
         # semantic_tensor = self.one_hot_encoding(semantic_tensor, 20)  # shape [B, clsss_num=19, 256, 512]
 
         semantic_tensor = self.pytorch_resize_totensor(seg_softmax_out_mask, size=(256, 512), mul=1,
-                                                       interpolation=Image.NEAREST,
+                                                       interpolation=InterpolationMode.NEAREST,
                                                        totensor=False)  # shape [B, 19, 256, 512]
         # print("seg_softmax_out_mask", torch.sum((seg_softmax_out_mask - semantic_tensor) > 1e-4))
         torch.cuda.synchronize()
@@ -500,24 +501,24 @@ class RoadAnomalyDetector(nn.Module):
 
         # synthesis necessary pre-process
         self.transform_semantic_resize = transforms.Compose(
-            [transforms.Resize(size=(256, 512), interpolation=Image.NEAREST)])
+            [transforms.Resize(size=(256, 512), interpolation=InterpolationMode.NEAREST)])
         # self.transform_semantic_resize = transforms.Compose(
-        #     [transforms.Resize(size=(256, 512), interpolation=Image.BILINEAR, antialias=True)])
+        #     [transforms.Resize(size=(256, 512), interpolation=InterpolationMode.BILINEAR, antialias=True)])
         self.transform_image_syn = transforms.Compose(
-            [transforms.Resize(size=(256, 512), interpolation=Image.BICUBIC), transforms.ToTensor(),
+            [transforms.Resize(size=(256, 512), interpolation=InterpolationMode.BICUBIC), transforms.ToTensor(),
              transforms.Normalize((0.5, 0.5, 0.5),
                                   (0.5, 0.5, 0.5))])
-        self.transform_image_syn_resize = transforms.Resize(size=(256, 512), interpolation=Image.BICUBIC)
-        # self.transform_image_syn_resize = transforms.Resize(size=(256, 512), interpolation=Image.BILINEAR,
+        self.transform_image_syn_resize = transforms.Resize(size=(256, 512), interpolation=InterpolationMode.BICUBIC)
+        # self.transform_image_syn_resize = transforms.Resize(size=(256, 512), interpolation=InterpolationMode.BILINEAR,
         #                                                     antialias=True)
         self.transform_image_syn_norm = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 
         # dissimilarity pre-process
         self.vgg_diff = VGG19_difference().cuda()
         self.base_transforms_diss = transforms.Compose(
-            [transforms.Resize(size=(256, 512), interpolation=Image.NEAREST), transforms.ToTensor()])
+            [transforms.Resize(size=(256, 512), interpolation=InterpolationMode.NEAREST), transforms.ToTensor()])
         self.base_transforms_diss_resize = transforms.Compose(
-            [transforms.Resize(size=(256, 512), interpolation=Image.NEAREST)])
+            [transforms.Resize(size=(256, 512), interpolation=InterpolationMode.NEAREST)])
         self.norm_transform_diss = transforms.Compose(
             [transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])  # imageNet normamlization
         self.to_pil = ToPILImage()

@@ -22,7 +22,7 @@ parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0
 # parser.add_argument('--weights', type=str, default='[0.70, 0.1, 0.1, 0.1]', help='weights for ensemble testing [model, entropy, mae, distance]')
 opts = parser.parse_args()
 cudnn.benchmark = True
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 # weights = ast.literal_eval(opts.weights)
 
@@ -157,9 +157,9 @@ if __name__ == '__main__':
         raise NotImplementedError()
 
     diss_model.eval()
-    model_path = os.path.join(save_fdr, exp_name, '%s_net_%s.pth' % (epoch, exp_name))
+    model_path = os.path.join(save_fdr, '%s_net_%s.pth' % (epoch, exp_name))
     model_weights = torch.load(model_path)
-    diss_model.load_state_dict(model_weights)
+    diss_model.load_state_dict(model_weights, strict=False)
 
     softmax = torch.nn.Softmax(dim=1)
     best_weights, best_score, best_roc, best_ap = grid_search()

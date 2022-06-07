@@ -1,9 +1,9 @@
 # Name of the experiment for saving files
 experiment_name: replicate_best_mult_3 # where checkpoints are stored
-save_folder: /media/giancarlo/Samsung_T5/personal/master_thesis/cvpr/results/ # where checkpoints are stored
+save_folder: ../road_obstacles/models/image-dissimilarity/ # where checkpoints are stored
 which_epoch: best
-store_results: /media/giancarlo/Samsung_T5/personal/master_thesis/cvpr/fs_lost_and_found/predictions
-visualize: False
+store_results: ../road_obstacles/debug
+visualize: True
 ensemble: True
 
 # model options
@@ -23,7 +23,7 @@ dataset:
 # parameters for dataloaders
 test_dataloader:
   dataset_args:
-    dataroot: /media/giancarlo/Samsung_T5/data/thesis/final_dataset/fs_lost_and_found
+    dataroot: /zhouyafei/workspace/data/road_obstacles/synboost/final_dataset/fs_lost_and_found
     preprocess_mode: none
     crop_size: 512
     aspect_ratio: 2
@@ -34,7 +34,8 @@ test_dataloader:
     void: False
     num_semantic_classes: 19
     is_train: False
+    is_opencv: True
   dataloader_args:
     batch_size: 1
-    num_workers: 1
+    num_workers: 0
     shuffle: False

@@ -296,7 +296,6 @@ class DissimNetPrior(nn.Module):
 
         # Run Decoder
         x = self.conv1(layer4_cat)
-        print("spade", self.spade)
         if self.spade == 'decoder' or self.spade == 'both':
             x = self.conv2(x, semantic_img)
         else:

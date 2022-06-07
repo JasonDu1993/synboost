@@ -23,7 +23,7 @@ dataset:
 # parameters for dataloaders
 test_dataloader:
   dataset_args:
-    dataroot: /media/giancarlo/Samsung_T5/data/thesis/final_dataset/fs_static
+    dataroot: /zhouyafei/workspace/data/road_obstacles/synboost/final_dataset/fs_static
     preprocess_mode: none
     crop_size: 512
     aspect_ratio: 2

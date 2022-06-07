@@ -70,10 +70,9 @@ else:
     raise NotImplementedError()
 
 diss_model.eval()
-model_path = os.path.join(save_fdr, exp_name,
-                          '%s_net_%s.pth' % (epoch, exp_name))
+model_path = os.path.join(save_fdr, '%s_net_%s.pth' % (epoch, exp_name))
 model_weights = torch.load(model_path)
-diss_model.load_state_dict(model_weights)
+diss_model.load_state_dict(model_weights, strict=False)
 
 softmax = torch.nn.Softmax(dim=1)
 
@@ -152,4 +151,7 @@ if config['visualize']:
     plt.ylabel('True Positive Rate')
     plt.title('Receiver Operating Characteristic Curve')
     plt.legend(loc="lower right")
-    plt.savefig(os.path.join(store_fdr_exp, 'roc_curve.png'))
+    path = os.path.join(store_fdr_exp, 'roc_curve.png')
+    print("roc img save into: {}".format(path))
+    plt.show()
+    plt.savefig(path)
