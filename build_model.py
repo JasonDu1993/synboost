@@ -42,7 +42,8 @@ from time import time
 
 
 class RoadAnomalyDetector(nn.Module):
-    def __init__(self, ours=True, input_shape=(3, 512, 1024), seed=0, fishyscapes_wrapper=True, vis=False, verbose=False):
+    def __init__(self, ours=True, input_shape=(3, 512, 1024), seed=0, fishyscapes_wrapper=True, vis=False,
+                 verbose=False):
         super().__init__()
         self.set_seeds(seed)
 
@@ -175,13 +176,17 @@ class RoadAnomalyDetector(nn.Module):
         # get label map for synthesis model
         torch.cuda.synchronize()
         a4 = time()
-        # seg_final = seg_final.cpu().numpy()
-        # label_out = np.zeros_like(seg_final)
+        # numpy 实现
+        # seg_final_np = seg_final.cpu().numpy()
+        # label_out = np.zeros_like(seg_final_np)
         # for label_id, train_id in self.opt.dataset_cls.id_to_trainid.items():
         #     a00 = time()
-        #     label_out[np.where(seg_final == train_id)] = label_id
+        #     label_out[np.where(seg_final_np == train_id)] = label_id
         #     a01 = time()
         #     # print("syn_net preprocess {} label deal {} s".format(label_id, a01 - a00))
+        # label_out = label_out[:, None, :, :]
+        # label_out = torch.from_numpy(label_out).cuda()
+        # pytorch 实现
         label_out = torch.zeros_like(seg_final).float()  # shape [B, H, W]
 
         for label_id, train_id in self.id_to_trainid.items():
@@ -197,7 +202,7 @@ class RoadAnomalyDetector(nn.Module):
         # prepare for synthesis
         # label_tensor = self.transform_semantic(label_img) * 255.0
         # 1 label_img pytorch
-        label_out = label_out.unsqueeze(1)  # shape [B, 1, H, W]
+        # label_out = label_out.unsqueeze(1)  # shape [B, 1, H, W]
         label_tensor = self.pytorch_resize_totensor(label_out, size=(256, 512), mul=255,
                                                     interpolation=InterpolationMode.NEAREST)  # shape [B, 1, 256, 512]
         torch.cuda.synchronize()

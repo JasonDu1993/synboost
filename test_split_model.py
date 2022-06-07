@@ -14,7 +14,8 @@ from time import time
 import time as t
 
 from image_dissimilarity.util import trainer_util, metrics
-from build_model import RoadAnomalyDetector, colorize_mask
+from build_model import colorize_mask
+from estimator import AnomalyDetector
 from image_dissimilarity.data.image_dataset import ImageDataset
 from total_utils.seg_to_rect import postprocessing
 from total_utils.draw_box_util import draw_total_box
@@ -87,9 +88,8 @@ test_loader = torch.utils.data.DataLoader(dataset, **cfg_test_loader['dataloader
 # get model
 vis = False
 input_shape = [3, 512, 1024]  # c, h, w
-detector = RoadAnomalyDetector(True, input_shape, vis=vis)
-detector.to(gpu_info["device"])
-detector.eval()
+# input_shape = [3, 1024, 2048]  # c, h, w
+detector = AnomalyDetector(True, input_shape=input_shape, verbose=False)
 
 softmax = torch.nn.Softmax(dim=1)
 
@@ -111,7 +111,7 @@ with torch.no_grad():
         image_og_h, image_og_w, _ = image.shape
         if vis:
             t1 = time()
-            prediction, anomaly_score, outs = detector(img)
+            prediction, anomaly_score, outs = detector.estimator_image(image)
             # prediction = prediction.cpu().numpy()
             # anomaly_score = anomaly_score.cpu().numpy()
             # result = postprocessing(prediction, anomaly_score)
@@ -178,7 +178,7 @@ with torch.no_grad():
             img_box = results['box']
             cv2.imwrite(os.path.join(box_path, basename), img_box)
         else:
-            prediction, anomaly_score = detector(img)
+            prediction, anomaly_score, outs = detector.estimator_image(image)
             # print("spend dect {} s".format(time() - t0))
             if vis:
                 # 可视化diss_pred

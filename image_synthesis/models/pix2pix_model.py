@@ -128,20 +128,23 @@ class Pix2PixModel(torch.nn.Module):
 
     def preprocess_input(self, data):
         # move to GPU and change data types
-        # data["label"] = data["label"].long()
-        # data['label'] = data['label'].cuda(self.opt.gpu)
-        # data['instance'] = data['instance'].cuda(self.opt.gpu)
-        # data['image'] = data['image'].cuda(self.opt.gpu)
+        if "mask" in data:
+            mask = data["mask"]
+        else:
+            data["label"] = data["label"].long()
+            data['label'] = data['label'].cuda(self.opt.gpu)
+            data['instance'] = data['instance'].cuda(self.opt.gpu)
+            data['image'] = data['image'].cuda(self.opt.gpu)
 
-        # create one-hot label map
-        # label_map = data["label"]
-        # bs, _, h, w = label_map.size()  # shape [bs, 1, h, w]
-        # nc = self.opt.label_nc + 1 if self.opt.contain_dontcare_label \
-        #     else self.opt.label_nc
-        # input_label1 = torch.zeros(bs, nc, h, w).to(label_map.device)
-        # input_semantics1 = input_label1.scatter_(1, label_map, 1.0)
+            # create one-hot label map
+            label_map = data["label"]
+            bs, _, h, w = label_map.size()  # shape [bs, 1, h, w]
+            nc = self.opt.label_nc + 1 if self.opt.contain_dontcare_label \
+                else self.opt.label_nc
+            input_label = torch.zeros(bs, nc, h, w).to(label_map.device)
+            input_semantics = input_label.scatter_(1, label_map, 1.0)
+            mask = input_semantics
 
-        mask = data["mask"]
         # print(torch.sum(mask!=input_semantics1))
 
         """ 替换方案1：会产生inplace操作
