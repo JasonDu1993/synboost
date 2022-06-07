@@ -40,11 +40,9 @@ from total_utils.draw_box_util import draw_total_box
 import torch.nn as nn
 from time import time
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-
 
 class RoadAnomalyDetector(nn.Module):
-    def __init__(self, ours=True, input_shape=(3, 512, 1024), seed=0, fishyscapes_wrapper=True, vis=False):
+    def __init__(self, ours=True, input_shape=(3, 512, 1024), seed=0, fishyscapes_wrapper=True, vis=False, verbose=False):
         super().__init__()
         self.set_seeds(seed)
 
@@ -76,6 +74,7 @@ class RoadAnomalyDetector(nn.Module):
         self.id_index = [20, 21, 24, 25, 26, 32, 19, 0, 1, 22, 23, 2, 3, 4, 27, 28, 31, 5, 33, 6, 7, 8, 9, 10, 11, 12,
                          13, 14, 15, 29, 30, 16, 17, 18, 34]
         self.vis = vis
+        self.verbose = verbose
 
     def valid(self, x, path="image.npy", thd=1e-3):
         image_f = np.load(path)
@@ -95,7 +94,8 @@ class RoadAnomalyDetector(nn.Module):
         one_hot = one_hot[:, :num_classes - 1, :, :]
         return one_hot
 
-    def pytorch_resize_totensor(self, x, size=(256, 512), mul=1, interpolation=InterpolationMode.NEAREST, totensor=True):
+    def pytorch_resize_totensor(self, x, size=(256, 512), mul=1, interpolation=InterpolationMode.NEAREST,
+                                totensor=True):
         if isinstance(x, Image.Image):
             x = np.array(x).transpose((2, 0, 1))
             x = torch.from_numpy(x)
@@ -144,13 +144,15 @@ class RoadAnomalyDetector(nn.Module):
         # np.save("image.npy", img_tensor.unsqueeze(0).cuda().cpu().numpy())
         torch.cuda.synchronize()
         t1 = time()
-        print("img trans {} s".format(t1 - t0))
+        if self.verbose:
+            print("img trans {} s".format(t1 - t0))
         # predict segmentation
         with torch.no_grad():
             seg_outs = self.seg_net(img_tensor)  # shape: [B, 19, H=512, W=1024]
         torch.cuda.synchronize()
         t2 = time()
-        print("img seg_net {} s".format(t2 - t1))
+        if self.verbose:
+            print("img seg_net {} s".format(t2 - t1))
         # np.save("seg_outs.npy", seg_outs.cpu().numpy())
         # 第一步：分割图后处理为了synnet和diss的输入
         torch.cuda.synchronize()
@@ -158,13 +160,15 @@ class RoadAnomalyDetector(nn.Module):
         seg_softmax_out = F.softmax(seg_outs, dim=1)  # shape: [B, 19, H=512, W=1024]
         torch.cuda.synchronize()
         a1 = time()
-        print("syn_net preprocess softmax {} s".format(a1 - a0))
+        if self.verbose:
+            print("syn_net preprocess softmax {} s".format(a1 - a0))
         # seg_final = np.argmax(seg_outs.cpu().numpy().squeeze(), axis=0)  # segmentation map shape: [H=1024, W=2048]
         _, seg_final = seg_softmax_out.max(dim=1)  # seg_final shape: [B, H=512, W=1024]
         seg_final = seg_final.float()
         torch.cuda.synchronize()
         a2 = time()
-        print("syn_net preprocess argmax {} s".format(a2 - a1))
+        if self.verbose:
+            print("syn_net preprocess argmax {} s".format(a2 - a1))
         # np.save("seg_final.npy", seg_final)
 
         # 第二步：synnet:label_img
@@ -184,7 +188,8 @@ class RoadAnomalyDetector(nn.Module):
             label_out[seg_final == train_id] = label_id
         torch.cuda.synchronize()
         a5 = time()
-        print("syn_net preprocess label {} s".format(a5 - a4))
+        if self.verbose:
+            print("syn_net preprocess label {} s".format(a5 - a4))
         # np.save("label_img.npy", np.array(label_out))
 
         # 1 label_img origin
@@ -197,13 +202,15 @@ class RoadAnomalyDetector(nn.Module):
                                                     interpolation=InterpolationMode.NEAREST)  # shape [B, 1, 256, 512]
         torch.cuda.synchronize()
         a6 = time()
-        print("syn_net preprocess label resize {} s".format(a6 - a5))
+        if self.verbose:
+            print("syn_net preprocess label resize {} s".format(a6 - a5))
         # self.valid(label_tensor, "label_tensor.npy")
 
         label_tensor[label_tensor == 255] = 35  # 'unknown' is opt.label_nc shape [B, 1, 256, 512]
         torch.cuda.synchronize()
         a7 = time()
-        print("syn_net preprocess label 255 {} s".format(a7 - a6))
+        if self.verbose:
+            print("syn_net preprocess label 255 {} s".format(a7 - a6))
         # 第二步：synnet: origin_img
         # 2 syn_img_input origin
         # image_tensor = self.transform_image_syn(img)
@@ -216,17 +223,20 @@ class RoadAnomalyDetector(nn.Module):
         # self.valid(image_tensor, "image_syn.npy")
         torch.cuda.synchronize()
         a8 = time()
-        print("syn_net preprocess img resize {} s".format(a8 - a7))
+        if self.verbose:
+            print("syn_net preprocess img resize {} s".format(a8 - a7))
 
         # Get instance map in right format. Since prediction doesn't have instance map, we use semantic instead
         instance_tensor = label_tensor.clone()  # shape [B, 1, 256, 512]
         torch.cuda.synchronize()
         a9 = time()
-        print("syn_net preprocess instance_tensor resize {} s".format(a9 - a8))
-        print("syn_net preprocess total {} s".format(a9 - a0))
+        if self.verbose:
+            print("syn_net preprocess instance_tensor resize {} s".format(a9 - a8))
+            print("syn_net preprocess total {} s".format(a9 - a0))
         torch.cuda.synchronize()
         t3 = time()
-        print("img syn_net input preprocess {} s".format(t3 - t2))
+        if self.verbose:
+            print("img syn_net input preprocess {} s".format(t3 - t2))
 
         seg_softmax_out_mask = (seg_softmax_out == seg_softmax_out.max(dim=1, keepdim=True)[0]).float()
         mb, mc, mh, mw = seg_softmax_out_mask.shape
@@ -249,7 +259,8 @@ class RoadAnomalyDetector(nn.Module):
         # np.save("generated.npy", generated.cpu().numpy())
         torch.cuda.synchronize()
         t4 = time()
-        print("img syn_net {} s".format(t4 - t3))
+        if self.verbose:
+            print("img syn_net {} s".format(t4 - t3))
         torch.cuda.synchronize()
         b0 = time()
         # get initial transformation
@@ -264,7 +275,8 @@ class RoadAnomalyDetector(nn.Module):
         syn_image_tensor1 = self.norm_transform_diss(syn_image_tensor1)
         torch.cuda.synchronize()
         b1 = time()
-        print("vgg_diff preprocess synimg resize norm {} s".format(b1 - b0))
+        if self.verbose:
+            print("vgg_diff preprocess synimg resize norm {} s".format(b1 - b0))
 
         # 第三步：vggdiff: 输入原图，也是第四步的输入
         # 5 diss image origin origin
@@ -292,21 +304,24 @@ class RoadAnomalyDetector(nn.Module):
         image_tensor1 = self.norm_transform_diss(image_tensor1)
         torch.cuda.synchronize()
         b2 = time()
-        print("vgg_diff preprocess inputimg resize norm {} s".format(b2 - b1))
-        print("vgg_diff preprocess total {} s".format(b2 - b0))
+        if self.verbose:
+            print("vgg_diff preprocess inputimg resize norm {} s".format(b2 - b1))
+            print("vgg_diff preprocess total {} s".format(b2 - b0))
         torch.cuda.synchronize()
         t5 = time()
         # np.save("vgg_diff_image_tensor.npy", image_tensor.cpu().numpy())
         # np.save("vgg_diff_syn_image_tensor.npy", syn_image_tensor.cpu().numpy())
         # self.valid(image_tensor1, "vgg_diff_image_tensor.npy")
-        print("img vgg_diff preprocess {} s".format(t5 - t4))
+        if self.verbose:
+            print("img vgg_diff preprocess {} s".format(t5 - t4))
 
         # get softmax difference
         perceptual_diff = self.vgg_diff(image_tensor1, syn_image_tensor1)  # shape [B, 1, 256, 512]
         # np.save("vgg_diff_perceptual_diff.npy", perceptual_diff.cpu().numpy())
         torch.cuda.synchronize()
         t6 = time()
-        print("img vgg_diff {} s".format(t6 - t5))
+        if self.verbose:
+            print("img vgg_diff {} s".format(t6 - t5))
         # 第四步：diss：perceptual
         # min_v = torch.min(perceptual_diff.squeeze())
         # max_v = torch.max(perceptual_diff.squeeze())
@@ -377,7 +392,8 @@ class RoadAnomalyDetector(nn.Module):
         torch.cuda.synchronize()
         t7 = time()
         # 第四步：diss：三个不同的图
-        print("img diss_model prerocess {} s".format(t7 - t6))
+        if self.verbose:
+            print("img diss_model prerocess {} s".format(t7 - t6))
         # run dissimilarity
         # np.save("diss_model_semantic_tensor.npy", semantic_tensor.cpu().numpy())
         # np.save("diss_model_entropy_tensor.npy", entropy_tensor.cpu().numpy())
@@ -393,7 +409,8 @@ class RoadAnomalyDetector(nn.Module):
                 diss_pred = F.softmax(self.diss_model(image_tensor1, syn_image_tensor1, semantic_tensor), dim=1)
         torch.cuda.synchronize()
         t8 = time()
-        print("img diss_model {} s".format(t8 - t7))
+        if self.verbose:
+            print("img diss_model {} s".format(t8 - t7))
 
         # do ensemble if necessary
         if self.ensemble:
@@ -404,7 +421,8 @@ class RoadAnomalyDetector(nn.Module):
         torch.cuda.synchronize()
         t9 = time()
         # np.save("diss_pred.npy", diss_pred)
-        print("total {} s".format(t9 - t0))
+        if self.verbose:
+            print("total {} s".format(t9 - t0))
         if self.vis:
             out = {'anomaly_map': diss_pred, 'segmentation': seg_final, 'synthesis': generated,
                    'softmax_entropy': entropy_tensor, 'perceptual_diff': perceptual_diff_tensor,
@@ -544,29 +562,13 @@ def colorize_mask(mask):
     return new_mask
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--demo_folder', type=str, default='./sample_images', help='Path to folder with images to be run.')
-parser.add_argument('--save_folder', type=str, default='./results/tmp2', help='Folder to where to save the results')
-opts = parser.parse_args()
-
-demo_folder = opts.demo_folder
-save_folder = opts.save_folder
-# Save folders
-semantic_path = os.path.join(save_folder, 'semantic')
-anomaly_path = os.path.join(save_folder, 'anomaly')
-synthesis_path = os.path.join(save_folder, 'synthesis')
-entropy_path = os.path.join(save_folder, 'entropy')
-distance_path = os.path.join(save_folder, 'distance')
-perceptual_diff_path = os.path.join(save_folder, 'perceptual_diff')
-box_path = os.path.join(save_folder, 'box')
-
-os.makedirs(semantic_path, exist_ok=True)
-os.makedirs(anomaly_path, exist_ok=True)
-os.makedirs(synthesis_path, exist_ok=True)
-os.makedirs(entropy_path, exist_ok=True)
-os.makedirs(distance_path, exist_ok=True)
-os.makedirs(perceptual_diff_path, exist_ok=True)
-os.makedirs(box_path, exist_ok=True)
+def parse_config():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--demo_folder', type=str, default='./sample_images',
+                        help='Path to folder with images to be run.')
+    parser.add_argument('--save_folder', type=str, default='./results/tmp2', help='Folder to where to save the results')
+    opts = parser.parse_args()
+    return opts
 
 
 def img_preprocess(image, input_shape):
@@ -580,6 +582,25 @@ def img_preprocess(image, input_shape):
 
 
 if __name__ == '__main__':
+    opts = parse_config()
+    demo_folder = opts.demo_folder
+    save_folder = opts.save_folder
+    # Save folders
+    semantic_path = os.path.join(save_folder, 'semantic')
+    anomaly_path = os.path.join(save_folder, 'anomaly')
+    synthesis_path = os.path.join(save_folder, 'synthesis')
+    entropy_path = os.path.join(save_folder, 'entropy')
+    distance_path = os.path.join(save_folder, 'distance')
+    perceptual_diff_path = os.path.join(save_folder, 'perceptual_diff')
+    box_path = os.path.join(save_folder, 'box')
+
+    os.makedirs(semantic_path, exist_ok=True)
+    os.makedirs(anomaly_path, exist_ok=True)
+    os.makedirs(synthesis_path, exist_ok=True)
+    os.makedirs(entropy_path, exist_ok=True)
+    os.makedirs(distance_path, exist_ok=True)
+    os.makedirs(perceptual_diff_path, exist_ok=True)
+    os.makedirs(box_path, exist_ok=True)
     # input_shape = [3, 256, 512]
     input_shape = [3, 512, 1024]
     # input_shape = [3, 1024, 2048]
@@ -687,4 +708,3 @@ if __name__ == '__main__':
             print("spend total {} s".format(time() - t0))
             draw_total_box(img_path, result[0], debug=True)
             # break
-            t.sleep(10)

@@ -1,8 +1,8 @@
 # Name of the experiment for saving files
 experiment_name: replicate_best_mult_3 # where checkpoints are stored
-save_folder: ../road_obstacles/models/image-dissimilarity/ # where checkpoints are stored
+save_folder: ../road_obstacles/models/image-dissimilarity/debug # where checkpoints are stored
 which_epoch: best
-store_results: ../road_obstacles/debug
+store_results: ../road_obstacles/fs_lost_found
 visualize: True
 ensemble: True
 
