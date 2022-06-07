@@ -18,9 +18,9 @@ from image_dissimilarity.data.augmentations import get_transform
 
 class ImageDataset(Dataset):
 
-    def __init__(self, dataroot, preprocess_mode, crop_size=512, aspect_ratio=0.5, flip=False, normalize=False,
+    def __init__(self, dataroot, preprocess_mode, input_shape, crop_size=512, aspect_ratio=0.5, flip=False, normalize=False,
                  prior=False, only_valid=False, roi=False, light_data=False, void=False, num_semantic_classes=19,
-                 is_train=True, is_opencv=False):
+                 is_train=True, is_opencv=True):
         self.is_opencv = is_opencv
 
         self.original_paths = [os.path.join(dataroot, 'original', image)
@@ -53,6 +53,7 @@ class ImageDataset(Dataset):
 
         self.w = self.crop_size
         self.h = round(self.crop_size / self.aspect_ratio)
+        self.img_c, self.img_h, self.img_w = input_shape
 
     def open_img(self, path, convert_to_rgb=False):
         img = cv2.imread(path)
@@ -115,7 +116,7 @@ class ImageDataset(Dataset):
                                              totensor=True)
 
         image_path = self.original_paths[index]
-        image = self.img_preprocess(image_path, (3, self.h, self.w))
+        image = self.img_preprocess(image_path, (3, self.img_h, self.img_w))
 
         input_dict = {'label': label,
                       'original': image,

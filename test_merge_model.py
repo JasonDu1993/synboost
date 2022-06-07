@@ -81,13 +81,16 @@ prior = config['model']['prior']
 cfg_test_loader = config['test_dataloader']
 # adds logic to dataloaders (avoid repetition in config file)
 cfg_test_loader['dataset_args']['prior'] = prior
+input_shape = [3, 512, 1024]  # c, h, w
+cfg_test_loader['dataset_args']["input_shape"]= input_shape
+
 dataset = ImageDataset(**cfg_test_loader['dataset_args'])
 test_loader = torch.utils.data.DataLoader(dataset, **cfg_test_loader['dataloader_args'])
 
 # get model
 vis = False
-input_shape = [3, 512, 1024]  # c, h, w
-detector = RoadAnomalyDetector(True, input_shape, vis=vis)
+verbose = False
+detector = RoadAnomalyDetector(True, input_shape, vis=vis, verbose=verbose)
 detector.to(gpu_info["device"])
 detector.eval()
 
