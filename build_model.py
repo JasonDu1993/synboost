@@ -191,6 +191,7 @@ class RoadAnomalyDetector(nn.Module):
 
         for label_id, train_id in self.id_to_trainid.items():
             label_out[seg_final == train_id] = label_id
+        label_out = label_out.unsqueeze(1)  # shape [B, 1, H, W]
         torch.cuda.synchronize()
         a5 = time()
         if self.verbose:
@@ -202,7 +203,6 @@ class RoadAnomalyDetector(nn.Module):
         # prepare for synthesis
         # label_tensor = self.transform_semantic(label_img) * 255.0
         # 1 label_img pytorch
-        # label_out = label_out.unsqueeze(1)  # shape [B, 1, H, W]
         label_tensor = self.pytorch_resize_totensor(label_out, size=(256, 512), mul=255,
                                                     interpolation=InterpolationMode.NEAREST)  # shape [B, 1, 256, 512]
         torch.cuda.synchronize()
