@@ -10,6 +10,7 @@ from libs.models.PSPNet import PSPHead_res50
 
 class CascadeFeatureFusion(nn.Module):
     """CFF Unit"""
+
     def __init__(self, low_channels, high_channels, out_channels, nclass, norm_layer=nn.BatchNorm2d):
         super(CascadeFeatureFusion, self).__init__()
         self.conv_low = nn.Sequential(
@@ -62,7 +63,7 @@ class ICNet(nn.Module):
     def __init__(self, nclass):
         super(ICNet, self).__init__()
         self.conv_sub1 = nn.Sequential(
-            ConvBnRelu(3, 32, 3,2,1),
+            ConvBnRelu(3, 32, 3, 2, 1),
             ConvBnRelu(32, 32, 3, 2, 1),
             ConvBnRelu(32, 64, 3, 2, 1)
         )
@@ -73,7 +74,6 @@ class ICNet(nn.Module):
         self.conv_sub2 = ConvBnRelu(512, 256, 1)
 
     def forward(self, x):
-
         # sub 1
         x_sub1_out = self.conv_sub1(x)
 
@@ -107,12 +107,11 @@ def icnet(num_classes=19, data_set="cityscape"):
     return ICNet(num_classes)
 
 
-
 if __name__ == '__main__':
-    i = torch.Tensor(1,3,512,512).cuda()
+    i = torch.Tensor(1, 3, 512, 512).cuda()
     m = ICNet(19).cuda()
     m.eval()
-    res= m(i)
+    res = m(i)
     print("ICnet output length: ", len(res))
     for i in res:
         print(i.size())

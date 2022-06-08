@@ -117,7 +117,6 @@ class SwiftNetResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-
     def forward_resblock(self, x, layers):
         skip = None
         for l in layers:
@@ -175,10 +174,12 @@ class SwiftNetResNet(nn.Module):
             res.append(dsn)
         return res
 
+
 class SpatialPyramidPooling(nn.Module):
     """
         SPP module is little different from ppm by inserting middle level feature to save the computation and  memory.
     """
+
     def __init__(self, num_maps_in, num_levels, bt_size=512, level_size=128, out_size=128,
                  grids=(6, 3, 2, 1), square_grid=False, bn_momentum=0.1, use_bn=True):
         super(SpatialPyramidPooling, self).__init__()

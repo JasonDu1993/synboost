@@ -9,7 +9,8 @@ from torch.utils import data
 
 
 class MapDataSet(data.Dataset):
-    def __init__(self, root, split="train", max_iters=80000, crop_size=(321, 321), mean=(128, 128, 128), vars=(1, 1, 1), scale=True,
+    def __init__(self, root, split="train", max_iters=80000, crop_size=(321, 321), mean=(128, 128, 128), vars=(1, 1, 1),
+                 scale=True,
                  mirror=True, ignore_label=255, RGB=False):
         self.root = root
         self.crop_h, self.crop_w = crop_size

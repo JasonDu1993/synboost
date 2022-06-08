@@ -4,7 +4,7 @@ import torch.nn as nn
 from libs.core.operators import ConvBnRelu, SeparableConv2d
 from libs.utils.tools import load_model
 
-__all__ = ['Xception', 'Xception39','XceptionA']
+__all__ = ['Xception', 'Xception39', 'XceptionA']
 
 
 class SeparableConvBnRelu(nn.Module):
@@ -112,6 +112,8 @@ class Xception(nn.Module):
 """
     Xception39 is used for BiSeg Network
 """
+
+
 def Xception39(pretrained_model=None, **kwargs):
     model = Xception(Block, [4, 8, 4], [16, 32, 64], **kwargs)
 
@@ -121,7 +123,8 @@ def Xception39(pretrained_model=None, **kwargs):
 
 
 class BlockA(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1, dilation=1, norm_layer=nn.BatchNorm2d, start_with_relu=True):
+    def __init__(self, in_channels, out_channels, stride=1, dilation=1, norm_layer=nn.BatchNorm2d,
+                 start_with_relu=True):
         super(BlockA, self).__init__()
         if out_channels != in_channels or stride != 1:
             self.skip = nn.Conv2d(in_channels, out_channels, 1, stride, bias=False)
@@ -195,6 +198,7 @@ class FCAttention(nn.Module):
 """
     XceptionA is used for DFANet  
 """
+
 
 class XceptionA(nn.Module):
     def __init__(self, num_classes=1000, norm_layer=nn.BatchNorm2d):

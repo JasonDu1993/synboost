@@ -7,15 +7,12 @@ import torch
 import torch.nn as nn
 
 
-
 class MSFNet(nn.Module):
     def __init__(self):
         super(MSFNet, self).__init__()
 
-
     def forward(self, x):
         pass
-
 
 
 if __name__ == '__main__':

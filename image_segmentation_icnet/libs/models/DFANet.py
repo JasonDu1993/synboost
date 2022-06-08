@@ -69,7 +69,6 @@ class DFANet(nn.Module):
         stage3_enc4 = self.enc3_4(torch.cat([stage2_enc4, stage3_enc3], dim=1))
         stage3_fca = self.fca_3(stage3_enc4)
 
-
         stage1_enc2_decoder = self.enc2_1_reduce(stage1_enc2)
         stage2_enc2_docoder = F.interpolate(self.enc2_2_reduce(stage2_enc2), scale_factor=2,
                                             mode='bilinear', align_corners=True)
@@ -93,12 +92,13 @@ class DFANet(nn.Module):
         outputs.append(dsn2)
         return outputs
 
+
 def dfanet(num_classes=19, data_set="cityscapes"):
     return DFANet(num_classes)
 
 
 if __name__ == '__main__':
-    i = torch.Tensor(1,3,512,512).cuda()
+    i = torch.Tensor(1, 3, 512, 512).cuda()
     m = DFANet(19).cuda()
     m.eval()
     o = m(i)

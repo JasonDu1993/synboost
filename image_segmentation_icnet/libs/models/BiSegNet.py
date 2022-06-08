@@ -71,13 +71,13 @@ class BiSeNetHead(nn.Module):
 
 class BiSeNet(nn.Module):
     def __init__(self, out_planes, is_training=False,
-                  pretrained_model=None,
+                 pretrained_model=None,
                  norm_layer=nn.BatchNorm2d):
         super(BiSeNet, self).__init__()
         self.backbone = resnet18(pretrained_model, norm_layer=norm_layer,
-                                     bn_eps=1e-5,
-                                     bn_momentum=0.1,
-                                     deep_stem=True, stem_width=64)
+                                 bn_eps=1e-5,
+                                 bn_momentum=0.1,
+                                 deep_stem=True, stem_width=64)
 
         self.business_layer = []
         self.is_training = is_training
@@ -128,7 +128,6 @@ class BiSeNet(nn.Module):
         self.business_layer.append(self.heads)
         self.business_layer.append(self.ffm)
 
-
     def forward(self, data, label=None):
         spatial_out = self.spatial_path(data)
 
@@ -163,7 +162,7 @@ class BiSeNet(nn.Module):
 
 
 if __name__ == '__main__':
-    i = torch.Tensor(1,3,512,512).cuda()
+    i = torch.Tensor(1, 3, 512, 512).cuda()
     m = BiSeNet(19).cuda()
     m.eval()
     o = m(i)

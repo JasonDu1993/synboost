@@ -181,7 +181,6 @@ def random_crop(img, gt, size):
     return img, gt
 
 
-
 def normalize(img, mean, std):
     # pytorch pretrained model need the input range: 0-1
     img = img.astype(np.float32) / 255.0
@@ -189,30 +188,32 @@ def normalize(img, mean, std):
     img = img / std
 
     return img
+
+
 def resize_image(img, h, w, **up_kwargs):
     return F.upsample(img, (h, w), **up_kwargs)
 
 
 def pad_image(img, mean, std, crop_size):
-    b,c,h,w = img.size()
-    assert(c==3)
+    b, c, h, w = img.size()
+    assert (c == 3)
     padh = crop_size - h if h < crop_size else 0
     padw = crop_size - w if w < crop_size else 0
     pad_values = -np.array(mean) / np.array(std)
-    img_pad = img.new().resize_(b,c,h+padh,w+padw)
+    img_pad = img.new().resize_(b, c, h + padh, w + padw)
     for i in range(c):
         # note that pytorch pad params is in reversed orders
-        img_pad[:,i,:,:] = F.pad(img[:,i,:,:], (0, padw, 0, padh), value=pad_values[i])
-    assert(img_pad.size(2)>=crop_size and img_pad.size(3)>=crop_size)
+        img_pad[:, i, :, :] = F.pad(img[:, i, :, :], (0, padw, 0, padh), value=pad_values[i])
+    assert (img_pad.size(2) >= crop_size and img_pad.size(3) >= crop_size)
     return img_pad
 
 
 def crop_image(img, h0, h1, w0, w1):
-    return img[:,:,h0:h1,w0:w1]
+    return img[:, :, h0:h1, w0:w1]
 
 
 def flip_image(img):
-    assert(img.dim()==4)
+    assert (img.dim() == 4)
     with torch.cuda.device_of(img):
-        idx = torch.arange(img.size(3)-1, -1, -1).type_as(img).long()
+        idx = torch.arange(img.size(3) - 1, -1, -1).type_as(img).long()
     return img.index_select(3, idx)

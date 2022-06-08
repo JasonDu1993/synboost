@@ -78,7 +78,6 @@ class dfnetv1(nn.Module):
     def _make_layer(self, planes, blocks, stride=1):
         downsample = None
         if stride != 1 or self.inplanes != planes * BasicBlock.expansion:
-
             downsample = nn.Sequential(
                 nn.Conv2d(self.inplanes, planes * BasicBlock.expansion,
                           kernel_size=1, stride=stride, bias=False),
@@ -136,7 +135,6 @@ class dfnetv2(nn.Module):
     def _make_layer(self, planes, blocks, stride=1):
         downsample = None
         if stride != 1 or self.inplanes != planes * BasicBlock.expansion:
-
             downsample = nn.Sequential(
                 nn.Conv2d(self.inplanes, planes * BasicBlock.expansion,
                           kernel_size=1, stride=stride, bias=False),
@@ -159,11 +157,10 @@ class dfnetv2(nn.Module):
         x4 = self.stage3_2(x4)  # 16x128
         x5 = self.stage4_1(x4)  # 32x256
         x5 = self.stage4_2(x5)  # 32x256
-        return x3,x4,x5
+        return x3, x4, x5
 
 
 if __name__ == '__main__':
-    i = torch.Tensor(1,3,512,512).cuda()
+    i = torch.Tensor(1, 3, 512, 512).cuda()
     m = dfnetv2().cuda()
     m(i)
-

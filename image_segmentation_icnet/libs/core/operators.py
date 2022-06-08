@@ -6,7 +6,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import BatchNorm2d
 
-
 upsample = lambda x, size: F.interpolate(x, size, mode='bilinear', align_corners=True)
 
 
@@ -14,6 +13,7 @@ def conv3x3(in_planes, out_planes, stride=1):
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
                      padding=1, bias=False)
+
 
 class GlobalAvgPool2d(nn.Module):
     def __init__(self):
@@ -71,6 +71,7 @@ class ConvBnRelu(nn.Module):
 
         return x
 
+
 def dsn(in_channels, nclass, norm_layer=nn.BatchNorm2d):
     return nn.Sequential(
         nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1),
@@ -115,7 +116,8 @@ class ASPPModule(nn.Module):
         Chen, Liang-Chieh, et al. *"Rethinking Atrous Convolution for Semantic Image Segmentation."*
     """
 
-    def __init__(self, features, inner_features=256, out_features=512, dilations=(12, 24, 36), norm_layer=nn.BatchNorm2d):
+    def __init__(self, features, inner_features=256, out_features=512, dilations=(12, 24, 36),
+                 norm_layer=nn.BatchNorm2d):
         super(ASPPModule, self).__init__()
 
         self.conv1 = nn.Sequential(nn.AdaptiveAvgPool2d((1, 1)),
@@ -163,6 +165,7 @@ class A2Block(nn.Module):
     """
         Implementation of A2Block(NIPS 2018)
     """
+
     def __init__(self, inplane, plane):
         super(A2Block, self).__init__()
         self.down = nn.Conv2d(inplane, plane, 1)
@@ -201,16 +204,18 @@ class PSPModule(nn.Module):
     Reference:
         Zhao, Hengshuang, et al. *"Pyramid scene parsing network."*
     """
+
     def __init__(self, features, out_features=512, sizes=(1, 2, 3, 6), norm_layer=BatchNorm2d):
         super(PSPModule, self).__init__()
         self.stages = []
         self.stages = nn.ModuleList([self._make_stage(features, out_features, size, norm_layer) for size in sizes])
         self.bottleneck = nn.Sequential(
-            nn.Conv2d(features+len(sizes)*out_features, out_features, kernel_size=1, padding=1, dilation=1, bias=False),
+            nn.Conv2d(features + len(sizes) * out_features, out_features, kernel_size=1, padding=1, dilation=1,
+                      bias=False),
             norm_layer(out_features),
             nn.ReLU(),
             nn.Dropout2d(0.1)
-            )
+        )
 
     def _make_stage(self, features, out_features, size, norm_layer):
         prior = nn.AdaptiveAvgPool2d(output_size=(size, size))
@@ -220,11 +225,10 @@ class PSPModule(nn.Module):
 
     def forward(self, feats):
         h, w = feats.size(2), feats.size(3)
-        priors = [F.upsample(input=stage(feats), size=(h, w), mode='bilinear', align_corners=True) for stage in self.stages] + [feats]
+        priors = [F.upsample(input=stage(feats), size=(h, w), mode='bilinear', align_corners=True) for stage in
+                  self.stages] + [feats]
         bottle = self.bottleneck(torch.cat(priors, 1))
         return bottle
-
-
 
 
 # For BiSeNet
@@ -249,6 +253,7 @@ class AttentionRefinement(nn.Module):
         fm = fm * fm_se
 
         return fm
+
 
 # For BiSeNet
 class FeatureFusion(nn.Module):
@@ -275,5 +280,3 @@ class FeatureFusion(nn.Module):
         fm_se = self.channel_attention(fm)
         output = fm + fm * fm_se
         return output
-
-

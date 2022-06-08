@@ -57,11 +57,12 @@ class OhemCrossEntropy2dTensor(nn.Module):
 
 
 class CriterionDSN(nn.CrossEntropyLoss):
-    def __init__(self, ignore_index=255,reduce=True):
+    def __init__(self, ignore_index=255, reduce=True):
         super(CriterionDSN, self).__init__()
 
         self.ignore_index = ignore_index
         self.reduce = reduce
+
     def forward(self, preds, target):
         scale_pred = preds[0]
         loss1 = super(CriterionDSN, self).forward(scale_pred, target)
@@ -75,6 +76,7 @@ class CriterionOhemDSN(nn.Module):
     '''
     DSN : We need to consider two supervision for the models.
     '''
+
     def __init__(self, ignore_index=255, thresh=0.7, min_kept=100000, reduce=True):
         super(CriterionOhemDSN, self).__init__()
         self.ignore_index = ignore_index
@@ -93,7 +95,6 @@ class CriterionOhemDSN(nn.Module):
         loss2 = self.criterion2(scale_pred, target)
 
         return loss1 + loss2 * 0.4
-
 
 
 class CriterionICNet(nn.Module):

@@ -1,6 +1,7 @@
 import torch.nn as nn
 from torch.nn import functional as F
 import torch
+
 affine_par = True
 
 from torch.nn import BatchNorm2d
@@ -14,12 +15,13 @@ def conv3x3(in_planes, out_planes, stride=1):
 
 class Bottleneck(nn.Module):
     expansion = 4
+
     def __init__(self, inplanes, planes, stride=1, dilation=1, downsample=None, fist_dilation=1, multi_grid=1):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
         self.bn1 = BatchNorm2d(planes)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
-                               padding=dilation*multi_grid, dilation=dilation*multi_grid, bias=False)
+                               padding=dilation * multi_grid, dilation=dilation * multi_grid, bias=False)
         self.bn2 = BatchNorm2d(planes)
         self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
         self.bn3 = BatchNorm2d(planes * 4)
@@ -51,22 +53,25 @@ class Bottleneck(nn.Module):
 
         return out
 
+
 class PSPModule(nn.Module):
     """
     Reference:
         Zhao, Hengshuang, et al. *"Pyramid scene parsing network."*
     """
+
     def __init__(self, features, out_features=512, sizes=(1, 2, 3, 6)):
         super(PSPModule, self).__init__()
 
         self.stages = []
         self.stages = nn.ModuleList([self._make_stage(features, out_features, size) for size in sizes])
         self.bottleneck = nn.Sequential(
-            nn.Conv2d(features+len(sizes)*out_features, out_features, kernel_size=3, padding=1, dilation=1, bias=False),
+            nn.Conv2d(features + len(sizes) * out_features, out_features, kernel_size=3, padding=1, dilation=1,
+                      bias=False),
             BatchNorm2d(out_features),
             nn.ReLU(),
             nn.Dropout2d(0.1)
-            )
+        )
 
     def _make_stage(self, features, out_features, size):
         prior = nn.AdaptiveAvgPool2d(output_size=(size, size))
@@ -76,7 +81,8 @@ class PSPModule(nn.Module):
 
     def forward(self, feats):
         h, w = feats.size(2), feats.size(3)
-        priors = [F.upsample(input=stage(feats), size=(h, w), mode='bilinear', align_corners=True) for stage in self.stages] + [feats]
+        priors = [F.upsample(input=stage(feats), size=(h, w), mode='bilinear', align_corners=True) for stage in
+                  self.stages] + [feats]
         bottle = self.bottleneck(torch.cat(priors, 1))
         return bottle
 
@@ -97,14 +103,14 @@ class ResNet(nn.Module):
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
         self.relu = nn.ReLU(inplace=False)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1, ceil_mode=True) # change
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1, ceil_mode=True)  # change
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=1, dilation=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=1, dilation=4, multi_grid=(1,1,1))
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=1, dilation=4, multi_grid=(1, 1, 1))
 
         self.head = nn.Sequential(PSPModule(2048, 512),
-            nn.Conv2d(512, num_classes, kernel_size=1, stride=1, padding=0, bias=True))
+                                  nn.Conv2d(512, num_classes, kernel_size=1, stride=1, padding=0, bias=True))
 
         self.dsn = nn.Sequential(
             nn.Conv2d(1024, 512, kernel_size=3, stride=1, padding=1),
@@ -112,7 +118,7 @@ class ResNet(nn.Module):
             nn.ReLU(),
             nn.Dropout2d(0.1),
             nn.Conv2d(512, num_classes, kernel_size=1, stride=1, padding=0, bias=True)
-            )
+        )
 
     def _make_layer(self, block, planes, blocks, stride=1, dilation=1, multi_grid=1):
         downsample = None
@@ -123,11 +129,13 @@ class ResNet(nn.Module):
                 BatchNorm2d(planes * block.expansion, affine=affine_par))
 
         layers = []
-        generate_multi_grid = lambda index, grids: grids[index%len(grids)] if isinstance(grids, tuple) else 1
-        layers.append(block(self.inplanes, planes, stride,dilation=dilation, downsample=downsample, multi_grid=generate_multi_grid(0, multi_grid)))
+        generate_multi_grid = lambda index, grids: grids[index % len(grids)] if isinstance(grids, tuple) else 1
+        layers.append(block(self.inplanes, planes, stride, dilation=dilation, downsample=downsample,
+                            multi_grid=generate_multi_grid(0, multi_grid)))
         self.inplanes = planes * block.expansion
         for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes, dilation=dilation, multi_grid=generate_multi_grid(i, multi_grid)))
+            layers.append(
+                block(self.inplanes, planes, dilation=dilation, multi_grid=generate_multi_grid(i, multi_grid)))
 
         return nn.Sequential(*layers)
 
@@ -154,6 +162,7 @@ class PSPHead(nn.Module):
     """
         Used for ICNet
     """
+
     def __init__(self, block, layers):
         self.inplanes = 128
         super(PSPHead, self).__init__()
@@ -208,22 +217,22 @@ class PSPHead(nn.Module):
 
 
 def PSPNet_res101(num_classes=21):
-    model = ResNet(Bottleneck,[3, 4, 23, 3], num_classes)
+    model = ResNet(Bottleneck, [3, 4, 23, 3], num_classes)
     return model
 
 
 def PSPNet_res50(num_classes=21):
-    model = ResNet(Bottleneck,[3, 4, 6, 3], num_classes)
+    model = ResNet(Bottleneck, [3, 4, 6, 3], num_classes)
     return model
 
 
 def PSPHead_res50():
-    model = PSPHead(Bottleneck,[3, 4, 6, 3])
+    model = PSPHead(Bottleneck, [3, 4, 6, 3])
     return model
 
 
 if __name__ == '__main__':
-    i = torch.Tensor(1,3,769,769).cuda()
+    i = torch.Tensor(1, 3, 769, 769).cuda()
     model = PSPNet_res101(19)
     model.eval()
     o = model(i)

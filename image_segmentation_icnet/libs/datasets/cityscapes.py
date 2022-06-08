@@ -12,7 +12,7 @@ from torch.utils import data
 
 class Cityscapes(data.Dataset):
     def __init__(self, root, list_path="./list/cityscapes/train.txt", max_iters=None, crop_size=(321, 321),
-                 mean=(128, 128, 128), vars=(1,1,1), scale=True, mirror=True, ignore_label=255, RGB=False):
+                 mean=(128, 128, 128), vars=(1, 1, 1), scale=True, mirror=True, ignore_label=255, RGB=False):
         self.root = root
         self.list_path = list_path
         self.crop_h, self.crop_w = crop_size
@@ -23,8 +23,8 @@ class Cityscapes(data.Dataset):
         self.is_mirror = mirror
         self.rgb = RGB
         self.img_ids = [i_id.strip().split() for i_id in open(list_path)]
-        if not max_iters==None:
-                self.img_ids = self.img_ids * int(np.ceil(float(max_iters) / len(self.img_ids)))
+        if not max_iters == None:
+            self.img_ids = self.img_ids * int(np.ceil(float(max_iters) / len(self.img_ids)))
         self.files = []
         for item in self.img_ids:
             image_path, label_path = item
@@ -49,8 +49,8 @@ class Cityscapes(data.Dataset):
 
     def generate_scale_label(self, image, label):
         f_scale = 0.7 + random.randint(0, 14) / 10.0
-        image = cv2.resize(image, None, fx=f_scale, fy=f_scale, interpolation = cv2.INTER_LINEAR)
-        label = cv2.resize(label, None, fx=f_scale, fy=f_scale, interpolation = cv2.INTER_NEAREST)
+        image = cv2.resize(image, None, fx=f_scale, fy=f_scale, interpolation=cv2.INTER_LINEAR)
+        label = cv2.resize(label, None, fx=f_scale, fy=f_scale, interpolation=cv2.INTER_NEAREST)
         return image, label
 
     def id2trainId(self, label, reverse=False):
@@ -74,8 +74,8 @@ class Cityscapes(data.Dataset):
         image = np.asarray(image, np.float32)
 
         if self.rgb:
-            image = image[:,:, ::-1]  ## BGR -> RGB
-            image /= 255         ## using pytorch pretrained models
+            image = image[:, :, ::-1]  ## BGR -> RGB
+            image /= 255  ## using pytorch pretrained models
 
         image -= self.mean
         image /= self.vars
@@ -85,11 +85,11 @@ class Cityscapes(data.Dataset):
         pad_w = max(self.crop_w - img_w, 0)
         if pad_h > 0 or pad_w > 0:
             img_pad = cv2.copyMakeBorder(image, 0, pad_h, 0,
-                pad_w, cv2.BORDER_CONSTANT,
-                value=(0.0, 0.0, 0.0))
+                                         pad_w, cv2.BORDER_CONSTANT,
+                                         value=(0.0, 0.0, 0.0))
             label_pad = cv2.copyMakeBorder(label, 0, pad_h, 0,
-                pad_w, cv2.BORDER_CONSTANT,
-                value=(self.ignore_label,))
+                                           pad_w, cv2.BORDER_CONSTANT,
+                                           value=(self.ignore_label,))
         else:
             img_pad, label_pad = image, label
 
@@ -97,8 +97,8 @@ class Cityscapes(data.Dataset):
         h_off = random.randint(0, img_h - self.crop_h)
         w_off = random.randint(0, img_w - self.crop_w)
 
-        image = np.asarray(img_pad[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)
-        label = np.asarray(label_pad[h_off : h_off+self.crop_h, w_off : w_off+self.crop_w], np.float32)
+        image = np.asarray(img_pad[h_off: h_off + self.crop_h, w_off: w_off + self.crop_w], np.float32)
+        label = np.asarray(label_pad[h_off: h_off + self.crop_h, w_off: w_off + self.crop_w], np.float32)
 
         image = image.transpose((2, 0, 1))
         if self.is_mirror:

@@ -28,19 +28,17 @@ def lr_poly(base_lr, iter, max_iter, power):
     return base_lr * ((1 - float(iter) / max_iter) ** (power))
 
 
-
 def adjust_learning_rate(optimizer, args, i_iter, total_steps):
     lr = lr_poly(args.learning_rate, i_iter, total_steps, args.power)
     optimizer.param_groups[0]['lr'] = lr
     return lr
 
 
-
 def set_bn_momentum(m):
     classname = m.__class__.__name__
     if classname.find('BatchNorm') != -1:
-
         m.momentum = 0.0003
+
 
 def fixModelBN(m):
     pass

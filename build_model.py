@@ -611,7 +611,8 @@ if __name__ == '__main__':
     # input_shape = [3, 1024, 2048]
     root = "./sample_images"
     vis = True
-    detector = RoadAnomalyDetector(True, input_shape, vis=vis)
+    verbose=True
+    detector = RoadAnomalyDetector(True, input_shape, vis=vis, verbose=verbose)
     gpu = 0
     detector.to("cuda:{}".format(gpu))
     detector.eval()

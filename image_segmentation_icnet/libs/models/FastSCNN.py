@@ -206,6 +206,7 @@ class FeatureFusionModule(nn.Module):
 
 class Classifer(nn.Module):
     """Classifer"""
+
     def __init__(self, dw_channels, num_classes, stride=1, **kwargs):
         super(Classifer, self).__init__()
         self.dsconv1 = _DSConv(dw_channels, dw_channels, stride)
@@ -223,7 +224,7 @@ class Classifer(nn.Module):
 
 
 if __name__ == '__main__':
-    i = torch.Tensor(1,3,512,512).cuda()
+    i = torch.Tensor(1, 3, 512, 512).cuda()
     m = FastSCNN(19).cuda()
     m.eval()
     o = m(i)

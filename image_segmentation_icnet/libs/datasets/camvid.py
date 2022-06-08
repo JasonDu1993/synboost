@@ -7,7 +7,6 @@ import random
 import cv2
 from torch.utils import data
 
-
 """
 CamVid is a road scene understanding dataset with 367 training images and 233 testing images of day and dusk scenes. 
 The challenge is to segment 11 classes such as road, building, cars, pedestrians, signs, poles, side-walk etc. We 
@@ -51,9 +50,10 @@ class CamVidDataSet(data.Dataset):
         list_path: camvid_train_list.txt, include partial path
 
     """
+
     def __init__(self, root=None, list_path='./dataset/list/CamVid/camvid_train_list.txt',
                  max_iters=None, crop_size=(360, 360),
-                 mean=(128, 128, 128), scale=True, mirror=True, ignore_label=255, vars=(1,1,1), RGB=False):
+                 mean=(128, 128, 128), scale=True, mirror=True, ignore_label=255, vars=(1, 1, 1), RGB=False):
         self.root = root
         self.list_path = list_path
         self.crop_h, self.crop_w = crop_size
@@ -86,7 +86,7 @@ class CamVidDataSet(data.Dataset):
         datafiles = self.files[index]
         image = cv2.imread(datafiles["img"], cv2.IMREAD_COLOR)
         label = cv2.imread(datafiles["label"], cv2.IMREAD_GRAYSCALE)
-        label[label==11] = self.ignore_label
+        label[label == 11] = self.ignore_label
         size = image.shape
         name = datafiles["name"]
         if self.scale:
@@ -97,8 +97,8 @@ class CamVidDataSet(data.Dataset):
         image = np.asarray(image, np.float32)
 
         if self.rgb:
-            image = image[:,:, ::-1]  ## BGR -> RGB
-            image /= 255         ## using pytorch pretrained models
+            image = image[:, :, ::-1]  ## BGR -> RGB
+            image /= 255  ## using pytorch pretrained models
 
         image -= self.mean
         image /= self.vars
@@ -143,7 +143,7 @@ class CamVidTestDataSet(data.Dataset):
     """
 
     def __init__(self, root='/home/DataSet/CamVid', list_path='./dataset/list/CamVid/camvid_val_list.txt',
-                 f_scale=1, mean=(128, 128, 128), ignore_label=255, vars=(1,1,1), RGB=False):
+                 f_scale=1, mean=(128, 128, 128), ignore_label=255, vars=(1, 1, 1), RGB=False):
         self.root = root
         self.list_path = list_path
         self.ignore_label = ignore_label
@@ -176,7 +176,7 @@ class CamVidTestDataSet(data.Dataset):
         name = datafiles["name"]
         if self.f_scale != 1:
             image = cv2.resize(image, None, fx=self.f_scale, fy=self.f_scale, interpolation=cv2.INTER_LINEAR)
-            label = cv2.resize(label, None, fx=self.f_scale, fy=self.f_scale, interpolation = cv2.INTER_NEAREST)
+            label = cv2.resize(label, None, fx=self.f_scale, fy=self.f_scale, interpolation=cv2.INTER_NEAREST)
 
         label[label == 11] = self.ignore_label
 

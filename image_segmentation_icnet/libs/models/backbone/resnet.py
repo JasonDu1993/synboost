@@ -4,7 +4,6 @@ import torch.nn as nn
 
 from libs.utils.tools import load_model
 
-
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101']
 
 
@@ -214,4 +213,3 @@ def resnet101(pretrained_model=None, **kwargs):
     if pretrained_model is not None:
         model = load_model(model, pretrained_model)
     return model
-
