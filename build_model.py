@@ -23,10 +23,10 @@ import sys
 
 sys.path.insert(0, os.path.join(os.getcwd(), os.path.dirname(__file__), 'image_segmentation'))
 from image_segmentation.datasets.cityscapes_labels import trainId2labelId
-import network
-from optimizer import restore_snapshot
-from datasets import cityscapes
-from config import assert_and_infer_cfg
+import image_segmentation.network as network
+from image_segmentation.optimizer import restore_snapshot
+from image_segmentation.datasets import cityscapes
+from image_segmentation.config import assert_and_infer_cfg
 
 sys.path.insert(0, os.path.join(os.getcwd(), os.path.dirname(__file__), 'image_synthesis'))
 from image_synthesis.models.pix2pix_model import Pix2PixModel
@@ -34,7 +34,6 @@ from image_dissimilarity.models.dissimilarity_model import DissimNetPrior, Dissi
 from image_dissimilarity.models.vgg_features import VGG19_difference
 from image_dissimilarity.data.cityscapes_dataset import one_hot_encoding
 
-# sys.path.insert(0, os.path.join(os.getcwd(), os.path.dirname(__file__), 'total_utils'))
 from total_utils.seg_to_rect import postprocessing
 from total_utils.draw_box_util import draw_total_box
 import torch.nn as nn
@@ -51,7 +50,8 @@ class RoadAnomalyDetector(nn.Module):
         TestOptions = Config()
         self.opt = TestOptions
         torch.cuda.empty_cache()
-        self.get_segmentation()
+        # self.get_segmentation()
+        self.get_segmentation_icnet()
         self.get_synthesis()
         self.get_dissimilarity(ours)
         self.get_transformations()
@@ -150,6 +150,8 @@ class RoadAnomalyDetector(nn.Module):
         # predict segmentation
         with torch.no_grad():
             seg_outs = self.seg_net(img_tensor)  # shape: [B, 19, H=512, W=1024]
+            if isinstance(seg_outs, (tuple, list)):
+                seg_outs = seg_outs[0]
         torch.cuda.synchronize()
         t2 = time()
         if self.verbose:
@@ -455,6 +457,17 @@ class RoadAnomalyDetector(nn.Module):
         self.seg_net.eval()
         print('Segmentation Net Restored.')
 
+    def get_segmentation_icnet(self):
+        # Get Segmentation Net
+        sys.path.insert(0, os.path.join(os.getcwd(), os.path.dirname(__file__), 'image_segmentation_icnet'))
+        from image_segmentation_icnet.libs import models
+        self.seg_net = models.__dict__["icnet"](num_classes=19, data_set="cityscapes")
+        print('Segmentation ICNet Built.')
+        saved_state_dict = torch.load(self.opt.icnet_snapshot)
+        self.seg_net.load_state_dict(saved_state_dict)
+        self.seg_net.eval()
+        print('Segmentation ICNet Restored.')
+
     def get_synthesis(self):
         # Get Synthesis Net
         print('Synthesis Net Built.')
@@ -607,11 +620,11 @@ if __name__ == '__main__':
     os.makedirs(perceptual_diff_path, exist_ok=True)
     os.makedirs(box_path, exist_ok=True)
     # input_shape = [3, 256, 512]
-    input_shape = [3, 512, 1024]
-    # input_shape = [3, 1024, 2048]
+    # input_shape = [3, 512, 1024]
+    input_shape = [3, 1024, 2048]
     root = "./sample_images"
     vis = True
-    verbose=True
+    verbose = True
     detector = RoadAnomalyDetector(True, input_shape, vis=vis, verbose=verbose)
     gpu = 0
     detector.to("cuda:{}".format(gpu))

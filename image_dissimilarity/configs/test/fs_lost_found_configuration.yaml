@@ -2,7 +2,7 @@
 experiment_name: replicate_best_mult_3 # where checkpoints are stored
 save_folder: ../road_obstacles/models/image-dissimilarity/debug # where checkpoints are stored
 which_epoch: best
-store_results: ../road_obstacles/fs_lost_found_splitmodel_h512w1024_d
+store_results: ../road_obstacles/fs_lost_found_mergemodel_h512w1024_icnet
 visualize: True
 ensemble: True
 

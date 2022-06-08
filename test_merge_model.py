@@ -20,34 +20,36 @@ from total_utils.seg_to_rect import postprocessing
 from total_utils.draw_box_util import draw_total_box
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--config', type=str, help='Path to the config file.')
-parser.add_argument('--gpu_ids',
-                    type=str,
-                    default='0',
-                    help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
+parser.add_argument("--config", type=str, default="image_dissimilarity/configs/test/fs_lost_found_configuration.yaml",
+                    help="Path to the config file.")
+parser.add_argument("--gpu_ids", type=str, default="0", help="gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU")
+parser.add_argument("--store_results", type=str,
+                    default="../road_obstacles/fs_lost_found_mergemodel_h1024w2048_icnet",
+                    help="gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU")
 opts = parser.parse_args()
+
 cudnn.benchmark = True
 
 # Load experiment setting
-with open(opts.config, 'r') as stream:
+with open(opts.config, "r") as stream:
     config = yaml.load(stream, Loader=yaml.FullLoader)
-
+config["store_results"] = opts.store_results
 # get experiment information
-exp_name = config['experiment_name']
-save_fdr = config['save_folder']
-epoch = config['which_epoch']
-store_fdr = config['store_results']
-store_fdr_exp = os.path.join(config['store_results'], exp_name)
-ensemble = config['ensemble']
+exp_name = config["experiment_name"]
+save_fdr = config["save_folder"]
+epoch = config["which_epoch"]
+store_fdr = config["store_results"]
+store_fdr_exp = os.path.join(config["store_results"], exp_name)
+ensemble = config["ensemble"]
 
 # Save folders
-semantic_path = os.path.join(store_fdr, 'semantic')
-anomaly_path = os.path.join(store_fdr, 'anomaly')
-synthesis_path = os.path.join(store_fdr, 'synthesis')
-entropy_path = os.path.join(store_fdr, 'entropy')
-distance_path = os.path.join(store_fdr, 'distance')
-perceptual_diff_path = os.path.join(store_fdr, 'perceptual_diff')
-box_path = os.path.join(store_fdr, 'box')
+semantic_path = os.path.join(store_fdr, "semantic")
+anomaly_path = os.path.join(store_fdr, "anomaly")
+synthesis_path = os.path.join(store_fdr, "synthesis")
+entropy_path = os.path.join(store_fdr, "entropy")
+distance_path = os.path.join(store_fdr, "distance")
+perceptual_diff_path = os.path.join(store_fdr, "perceptual_diff")
+box_path = os.path.join(store_fdr, "box")
 
 os.makedirs(semantic_path, exist_ok=True)
 os.makedirs(anomaly_path, exist_ok=True)
@@ -66,26 +68,26 @@ if not os.path.isdir(store_fdr_exp):
         exist_ok=True,
     )
 
-if not os.path.isdir(os.path.join(store_fdr_exp, 'pred')):
-    os.makedirs(os.path.join(store_fdr_exp, 'label'), exist_ok=True)
-    os.makedirs(os.path.join(store_fdr_exp, 'pred'), exist_ok=True)
-    os.makedirs(os.path.join(store_fdr_exp, 'soft'), exist_ok=True)
+if not os.path.isdir(os.path.join(store_fdr_exp, "pred")):
+    os.makedirs(os.path.join(store_fdr_exp, "label"), exist_ok=True)
+    os.makedirs(os.path.join(store_fdr_exp, "pred"), exist_ok=True)
+    os.makedirs(os.path.join(store_fdr_exp, "soft"), exist_ok=True)
 
 # Activate GPUs
-config['gpu_ids'] = opts.gpu_ids
+config["gpu_ids"] = opts.gpu_ids
 gpu_info = trainer_util.activate_gpus(config)
 
 # checks if we are using prior images
-prior = config['model']['prior']
+prior = config["model"]["prior"]
 # Get data loaders
-cfg_test_loader = config['test_dataloader']
+cfg_test_loader = config["test_dataloader"]
 # adds logic to dataloaders (avoid repetition in config file)
-cfg_test_loader['dataset_args']['prior'] = prior
-input_shape = [3, 512, 1024]  # c, h, w
-cfg_test_loader['dataset_args']["input_shape"]= input_shape
+cfg_test_loader["dataset_args"]["prior"] = prior
+input_shape = [3, 1024, 2048]  # c, h, w
+cfg_test_loader["dataset_args"]["input_shape"] = input_shape
 
-dataset = ImageDataset(**cfg_test_loader['dataset_args'])
-test_loader = torch.utils.data.DataLoader(dataset, **cfg_test_loader['dataloader_args'])
+dataset = ImageDataset(**cfg_test_loader["dataset_args"])
+test_loader = torch.utils.data.DataLoader(dataset, **cfg_test_loader["dataloader_args"])
 
 # get model
 vis = False
@@ -97,19 +99,19 @@ detector.eval()
 softmax = torch.nn.Softmax(dim=1)
 
 # create memory locations for results to save time while running the code
-dataset = cfg_test_loader['dataset_args']
-h = int((dataset['crop_size'] / dataset['aspect_ratio']))
-w = int(dataset['crop_size'])
-flat_pred = np.zeros(w * h * len(test_loader), dtype='float32')
-flat_labels = np.zeros(w * h * len(test_loader), dtype='float32')
+dataset = cfg_test_loader["dataset_args"]
+h = int((dataset["crop_size"] / dataset["aspect_ratio"]))
+w = int(dataset["crop_size"])
+flat_pred = np.zeros(w * h * len(test_loader), dtype="float32")
+flat_labels = np.zeros(w * h * len(test_loader), dtype="float32")
 
 with torch.no_grad():
     for i, data_i in enumerate(tqdm(test_loader)):
         t0 = time()
-        img = data_i['original'].cuda()
-        label = data_i['label'].cuda()
-        img_path = data_i['original_path'][0]
-        basename = os.path.basename(img_path).replace('.jpg', '.png')
+        img = data_i["original"].cuda()
+        label = data_i["label"].cuda()
+        img_path = data_i["original_path"][0]
+        basename = os.path.basename(img_path).replace(".jpg", ".png")
         image = cv2.imread(img_path)
         image_og_h, image_og_w, _ = image.shape
         if vis:
@@ -153,32 +155,32 @@ with torch.no_grad():
 
             result = postprocessing(np.array(seg_img)[None, :], np.array(diss_pred)[None, :], image_og_h, image_og_w)
             img_box = draw_total_box(np.array(image), result[0], debug=True)
-            results = {'anomaly_map': diss_pred, 'segmentation': seg_img, 'synthesis': synthesis,
-                       'softmax_entropy': entropy, 'perceptual_diff': perceptual_diff, 'softmax_distance': distance,
+            results = {"anomaly_map": diss_pred, "segmentation": seg_img, "synthesis": synthesis,
+                       "softmax_entropy": entropy, "perceptual_diff": perceptual_diff, "softmax_distance": distance,
                        "box": img_box}
 
-            anomaly_map = results['anomaly_map'].convert('RGB')
+            anomaly_map = results["anomaly_map"].convert("RGB")
             anomaly_map = Image.fromarray(
                 np.concatenate([np.array(image)[:, :, ::-1], np.array(anomaly_map)], axis=1)
             )
             anomaly_map.save(os.path.join(anomaly_path, basename))
 
-            semantic_map = colorize_mask(np.array(results['segmentation']))
+            semantic_map = colorize_mask(np.array(results["segmentation"]))
             semantic_map.save(os.path.join(semantic_path, basename))
 
-            synthesis = results['synthesis']
+            synthesis = results["synthesis"]
             synthesis.save(os.path.join(synthesis_path, basename))
 
-            softmax_entropy = results['softmax_entropy'].convert('RGB')
+            softmax_entropy = results["softmax_entropy"].convert("RGB")
             softmax_entropy.save(os.path.join(entropy_path, basename))
 
-            softmax_distance = results['softmax_distance'].convert('RGB')
+            softmax_distance = results["softmax_distance"].convert("RGB")
             softmax_distance.save(os.path.join(distance_path, basename))
 
-            perceptual_diff = results['perceptual_diff'].convert('RGB')
+            perceptual_diff = results["perceptual_diff"].convert("RGB")
             perceptual_diff.save(os.path.join(perceptual_diff_path, basename))
 
-            img_box = results['box']
+            img_box = results["box"]
             cv2.imwrite(os.path.join(box_path, basename), img_box)
         else:
             prediction, anomaly_score = detector(img)
@@ -208,42 +210,42 @@ with torch.no_grad():
 
         label_tensor = label * 1
 
-        file_name = os.path.basename(data_i['original_path'][0])
+        file_name = os.path.basename(data_i["original_path"][0])
         label_img = Image.fromarray(
             label_tensor.squeeze().cpu().numpy().astype(np.uint8))
         soft_img = Image.fromarray(
             (soft_pred.squeeze().cpu().numpy() * 255).astype(np.uint8))
-        soft_img.save(os.path.join(store_fdr_exp, 'soft', file_name))
-        label_img.save(os.path.join(store_fdr_exp, 'label', file_name))
+        soft_img.save(os.path.join(store_fdr_exp, "soft", file_name))
+        label_img.save(os.path.join(store_fdr_exp, "label", file_name))
 
-print('Calculating metric scores')
-if config['test_dataloader']['dataset_args']['roi']:
+print("Calculating metric scores")
+if config["test_dataloader"]["dataset_args"]["roi"]:
     invalid_indices = np.argwhere(flat_labels == 255)
     flat_labels = np.delete(flat_labels, invalid_indices)
     flat_pred = np.delete(flat_pred, invalid_indices)
 
 results = metrics.get_metrics(flat_labels, flat_pred)
 
-print("roc_auc_score : " + str(results['auroc']))
-print("mAP: " + str(results['AP']))
-print("FPR@95%TPR : " + str(results['FPR@95%TPR']))
+print("roc_auc_score : " + str(results["auroc"]))
+print("mAP: " + str(results["AP"]))
+print("FPR@95%TPR : " + str(results["FPR@95%TPR"]))
 
-if config['visualize']:
+if config["visualize"]:
     plt.figure()
     lw = 2
-    plt.plot(results['fpr'],
-             results['tpr'],
-             color='darkorange',
+    plt.plot(results["fpr"],
+             results["tpr"],
+             color="darkorange",
              lw=lw,
-             label='ROC curve (area = %0.2f)' % results['auroc'])
-    plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
+             label="ROC curve (area = %0.2f)" % results["auroc"])
+    plt.plot([0, 1], [0, 1], color="navy", lw=lw, linestyle="--")
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.0])
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Receiver Operating Characteristic Curve')
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title("Receiver Operating Characteristic Curve")
     plt.legend(loc="lower right")
-    path = os.path.join(store_fdr_exp, 'roc_curve.png')
+    path = os.path.join(store_fdr_exp, "roc_curve.png")
     print("roc img save into: {}".format(path))
     plt.show()
     plt.savefig(path)

@@ -46,6 +46,7 @@ class Config():
     semantic_nc=36
     serial_batches=True
     snapshot='../road_obstacles/models/image-segmentation/cityscapes_best.pth'
+    icnet_snapshot='../road_obstacles/models/image-segmentation/icnet_final.pth'
     use_vae=True
     which_epoch='latest'
     z_dim=256
