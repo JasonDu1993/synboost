@@ -43,7 +43,7 @@ def make_dataset(quality, mode):
         raise BaseException("Instance Segmentation Not support")
 
     img_path = os.path.join(root, img_dir_name, 'images')
-    print(img_path)
+    print("img_path", img_path)
     if quality != 'video':
         imgs = sorted([os.path.splitext(f)[0] for f in os.listdir(img_path)])
         msks = sorted([os.path.splitext(f)[0] for f in os.listdir(mask_path)])

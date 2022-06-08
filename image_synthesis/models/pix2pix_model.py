@@ -285,7 +285,7 @@ class Pix2PixModel(torch.nn.Module):
         return t
 
     def get_edges(self, t):
-        print("t", t.shape)
+        # print("t", t.shape)
         # edge = torch.zeros_like(t, dtype=torch.bool).to(
         #     t.device)  # for PyTorch versions higher than 1.2.0, use BoolTensor instead of ByteTensor
         # edge[:, :, :, 1:] = edge[:, :, :, 1:] | (t[:, :, :, 1:] != t[:, :, :, :-1])

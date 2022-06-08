@@ -264,5 +264,5 @@ if __name__ == '__main__':
     m = SwiftNetRes18(pretrained=False).cuda()
     m.eval()
     o = m(i)
-    print(o[0].size())
+    print("o[0].size():", o[0].size())
     print("output length: ", len(o))
