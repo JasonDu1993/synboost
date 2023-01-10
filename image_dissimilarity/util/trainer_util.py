@@ -50,7 +50,7 @@ def get_dataloader(dataset_args, dataloader_args):
 #### Helper functions from https://github.com/iArunava/ENet-Real-Time-Semantic-Segmentation ####
 
 def get_class_weights(loader, num_classes, c=1.02):
-    '''
+    """
     This class return the class weights for each class
 
     Arguments:
@@ -61,13 +61,13 @@ def get_class_weights(loader, num_classes, c=1.02):
     Return:
     - class_weights : An array equal in length to the number of classes
                       containing the class weights for each class
-    '''
+    """
     
     labels = next(loader)
     all_labels = labels.flatten()
     each_class = np.bincount(all_labels, minlength=num_classes)
     prospensity_score = each_class / len(all_labels)
-    class_weights = 1 / (np.log(c + prospensity_score))
+    class_weights = 1 / (np.log(c + prospensity_score))  # 约等于1 / x
     return class_weights
 
 

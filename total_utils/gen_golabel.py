@@ -21,13 +21,13 @@ def traverse(src_dir, exts=None):
     labels = {}
     result = []
     cnt = -1
-    for root, dirs, files in os.walk(src_dir):
+    for root, dirs, files in sorted(os.walk(src_dir)):
         if len(files) > 0:
             class_name = root[get_path_len(src_dir):]
             if class_name not in labels:
                 cnt += 1
                 labels[class_name] = str(cnt)
-            for f in files:
+            for f in sorted(files):
                 ext = os.path.splitext(f)[-1].lower()
                 if ext in exts:
                     result.append([os.path.join(root, f), str(cnt)])
@@ -38,15 +38,15 @@ def gen_golabel_from_txt(input_path, save_path):
     cnt = 0
     if os.path.isdir(input_path):
         result = traverse(input_path)
-        with open(save_path, "w") as fw:
+        with open(save_path, "w", encoding="utf-8") as fw:
             for lines in result:
                 img_path, class_name = lines
                 color = "1"
                 new_line = img_path + " " + class_name + " " + color + "\n"
                 fw.write(new_line)
     else:
-        with open(input_path, "r") as fr:
-            with open(save_path, "w") as fw:
+        with open(input_path, "r", encoding="utf-8") as fr:
+            with open(save_path, "w", encoding="utf-8") as fw:
                 for line in fr.readlines():
                     cnt += 1
                     # if cnt % 1000 > 10:
@@ -71,8 +71,8 @@ def get_docker_cmd(root_dir, port):
 
 
 if __name__ == '__main__':
-    src_dir = "/zhouyafei/workspace/data/road_obstacles/synboost/final_dataset/fs_lost_and_found/labels_with_ROI"
-    dataset = "fs_lost_and_found_label"
+    src_dir = "/dataset/dataset/ssd/gesture/common_scenario_mobile_201021/ges30_cloudwalk"
+    dataset = "common_scenario_ges30_cloudwalk"
     # traverse(src_dir)
     server_dir = "/cloudgpfs/workspace/zhoudu/zhoudu/golabel"
     docker_dir = "/zhoudu/golabel"

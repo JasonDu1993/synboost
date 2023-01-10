@@ -20,7 +20,8 @@ from image_dissimilarity.util.image_logging import ImgLogging
 from image_dissimilarity.util import visualization
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--config', type=str, help='Path to the config file.')
+parser.add_argument('--config', type=str, default="image_dissimilarity/configs/train/repro_configuration.yaml",
+                    help='Path to the config file.')
 parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
 parser.add_argument('--seed', type=str, default='0', help='seed for experiment')
 opts = parser.parse_args()
@@ -29,20 +30,20 @@ cudnn.benchmark = True
 # Load experiment setting
 with open(opts.config, 'r') as stream:
     config = yaml.load(stream, Loader=yaml.FullLoader)
-    
+
 # get experiment information
 exp_name = config['experiment_name'] + opts.seed
 save_fdr = config['save_folder']
 logs_fdr = config['logger']['results_dir']
 
-print('Starting experiment named: %s'%exp_name)
+print('Starting experiment named: %s' % exp_name)
 
 if not os.path.isdir(save_fdr):
     os.mkdir(save_fdr)
 
 if not os.path.isdir(logs_fdr):
     os.mkdir(logs_fdr)
-    
+
 train_writer = SummaryWriter(os.path.join(logs_fdr, exp_name, 'train'), flush_secs=30)
 val_writer = SummaryWriter(os.path.join(logs_fdr, exp_name, 'validation'), flush_secs=30)
 test_writer = SummaryWriter(os.path.join(logs_fdr, exp_name, 'test'), flush_secs=30)
@@ -72,8 +73,7 @@ cfg_test_loader1['dataset_args']['prior'] = prior
 cfg_test_loader2['dataset_args']['prior'] = prior
 cfg_test_loader3['dataset_args']['prior'] = prior
 cfg_test_loader4['dataset_args']['prior'] = prior
-    
-    
+
 train_loader = trainer_util.get_dataloader(cfg_train_loader['dataset_args'], cfg_train_loader['dataloader_args'])
 val_loader = trainer_util.get_dataloader(cfg_val_loader['dataset_args'], cfg_val_loader['dataloader_args'])
 test_loader1 = trainer_util.get_dataloader(cfg_test_loader1['dataset_args'], cfg_test_loader1['dataloader_args'])
@@ -89,7 +89,7 @@ if config['training_strategy']['image_visualization']:
 
 # Getting parameters for test
 dataset = cfg_test_loader1['dataset_args']
-h = int((dataset['crop_size']/dataset['aspect_ratio']))
+h = int((dataset['crop_size'] / dataset['aspect_ratio']))
 w = int(dataset['crop_size'])
 
 # create trainer for our model
@@ -108,8 +108,8 @@ best_val_loss = float('inf')
 best_map_metric = 0
 iter = 0
 for epoch in iter_counter.training_epochs():
-    
-    print('Starting Epoch #%i for experiment %s'% (epoch, exp_name))
+
+    print('Starting Epoch #%i for experiment %s' % (epoch, exp_name))
     iter_counter.record_epoch_start(epoch)
     train_loss = 0
     cumul_map_sum = 0
@@ -119,23 +119,24 @@ for epoch in iter_counter.training_epochs():
         semantic = data_i['semantic'].cuda()
         synthesis = data_i['synthesis'].cuda()
         label = data_i['label'].cuda()
-        
+
         # Training
         if prior:
             entropy = data_i['entropy'].cuda()
             mae = data_i['mae'].cuda()
             distance = data_i['distance'].cuda()
-            model_loss, _ = trainer.run_model_one_step_prior(original, synthesis, semantic, label, entropy, mae, distance)
+            model_loss, _ = trainer.run_model_one_step_prior(original, synthesis, semantic, label, entropy, mae,
+                                                             distance)
         else:
             model_loss, _ = trainer.run_model_one_step(original, synthesis, semantic, label)
-            
+
         train_loss += model_loss
         train_writer.add_scalar('Loss_iter', model_loss, iter)
-        iter+=1
-        
+        iter += 1
+
     avg_train_loss = train_loss / len(train_loader)
     train_writer.add_scalar('Loss_epoch', avg_train_loss, epoch)
-    
+
     print('Training Loss: %f' % (avg_train_loss))
     print('Starting Validation')
     with torch.no_grad():
@@ -145,32 +146,32 @@ for epoch in iter_counter.training_epochs():
             semantic = data_i['semantic'].cuda()
             synthesis = data_i['synthesis'].cuda()
             label = data_i['label'].cuda()
-            
+
             if prior:
                 entropy = data_i['entropy'].cuda()
                 mae = data_i['mae'].cuda()
                 distance = data_i['distance'].cuda()
-    
+
                 # Evaluating
                 loss, _ = trainer.run_validation_prior(original, synthesis, semantic, label, entropy, mae,
-                                                             distance)
+                                                       distance)
             else:
                 loss, _ = trainer.run_validation(original, synthesis, semantic, label)
-                
+
             val_loss += loss
-            
+
         avg_val_loss = val_loss / len(val_loader)
         print('Validation Loss: %f' % avg_val_loss)
 
         val_writer.add_scalar('Loss_epoch', avg_val_loss, epoch)
-        
+
         if avg_val_loss < best_val_loss:
             print('Validation loss for epoch %d (%f) is better than previous best loss (%f). Saving best model.'
-                  %(epoch, avg_val_loss, best_val_loss))
+                  % (epoch, avg_val_loss, best_val_loss))
             best_val_loss = avg_val_loss
             trainer.save(save_fdr, 'best', exp_name)
-    
-    # Starts Testing (Test Set 1)
+
+        # Starts Testing (Test Set 1)
         print('Starting Testing For %s' % os.path.basename(cfg_test_loader1['dataset_args']['dataroot']))
         flat_pred = np.zeros(w * h * len(test_loader1))
         flat_labels = np.zeros(w * h * len(test_loader1))
@@ -180,18 +181,18 @@ for epoch in iter_counter.training_epochs():
             semantic = data_i['semantic'].cuda()
             synthesis = data_i['synthesis'].cuda()
             label = data_i['label'].cuda()
-            
+
             if prior:
                 entropy = data_i['entropy'].cuda()
                 mae = data_i['mae'].cuda()
                 distance = data_i['distance'].cuda()
-    
+
                 # Evaluating
                 loss, outputs = trainer.run_validation_prior(original, synthesis, semantic, label, entropy, mae,
                                                              distance)
             else:
                 loss, outputs = trainer.run_validation(original, synthesis, semantic, label)
-                
+
             val_loss += loss
             outputs = softmax(outputs)
             (softmax_pred, predictions) = torch.max(outputs, dim=1)
@@ -210,10 +211,14 @@ for epoch in iter_counter.training_epochs():
         print('FPR@95TPR: %f' % results['FPR@95%TPR'])
 
         avg_val_loss = val_loss / len(test_loader1)
-        test_writer.add_scalar('%s AUC_ROC' % os.path.basename(cfg_test_loader1['dataset_args']['dataroot']), results['auroc'], epoch)
-        test_writer.add_scalar('%s mAP' % os.path.basename(cfg_test_loader1['dataset_args']['dataroot']), results['AP'], epoch)
-        test_writer.add_scalar('%s FPR@95TPR' % os.path.basename(cfg_test_loader1['dataset_args']['dataroot']), results['FPR@95%TPR'], epoch)
-        test_writer.add_scalar('val_loss_%s' % os.path.basename(cfg_test_loader1['dataset_args']['dataroot']), avg_val_loss, epoch)
+        test_writer.add_scalar('%s AUC_ROC' % os.path.basename(cfg_test_loader1['dataset_args']['dataroot']),
+                               results['auroc'], epoch)
+        test_writer.add_scalar('%s mAP' % os.path.basename(cfg_test_loader1['dataset_args']['dataroot']), results['AP'],
+                               epoch)
+        test_writer.add_scalar('%s FPR@95TPR' % os.path.basename(cfg_test_loader1['dataset_args']['dataroot']),
+                               results['FPR@95%TPR'], epoch)
+        test_writer.add_scalar('val_loss_%s' % os.path.basename(cfg_test_loader1['dataset_args']['dataroot']),
+                               avg_val_loss, epoch)
         cumul_map_sum += results['AP']
         # Starts Testing (Test Set 2)
         print('Starting Testing For %s' % os.path.basename(cfg_test_loader2['dataset_args']['dataroot']))
@@ -225,18 +230,18 @@ for epoch in iter_counter.training_epochs():
             semantic = data_i['semantic'].cuda()
             synthesis = data_i['synthesis'].cuda()
             label = data_i['label'].cuda()
-            
+
             if prior:
                 entropy = data_i['entropy'].cuda()
                 mae = data_i['mae'].cuda()
                 distance = data_i['distance'].cuda()
-    
+
                 # Evaluating
                 loss, outputs = trainer.run_validation_prior(original, synthesis, semantic, label, entropy, mae,
                                                              distance)
             else:
                 loss, outputs = trainer.run_validation(original, synthesis, semantic, label)
-                
+
             val_loss += loss
             outputs = softmax(outputs)
             (softmax_pred, predictions) = torch.max(outputs, dim=1)
@@ -276,18 +281,18 @@ for epoch in iter_counter.training_epochs():
             semantic = data_i['semantic'].cuda()
             synthesis = data_i['synthesis'].cuda()
             label = data_i['label'].cuda()
-            
+
             if prior:
                 entropy = data_i['entropy'].cuda()
                 mae = data_i['mae'].cuda()
                 distance = data_i['distance'].cuda()
-    
+
                 # Evaluating
                 loss, outputs = trainer.run_validation_prior(original, synthesis, semantic, label, entropy, mae,
                                                              distance)
             else:
                 loss, outputs = trainer.run_validation(original, synthesis, semantic, label)
-                
+
             val_loss += loss
             outputs = softmax(outputs)
             (softmax_pred, predictions) = torch.max(outputs, dim=1)
@@ -332,17 +337,18 @@ for epoch in iter_counter.training_epochs():
             semantic = data_i['semantic'].cuda()
             synthesis = data_i['synthesis'].cuda()
             label = data_i['label'].cuda()
-            
+
             if prior:
                 entropy = data_i['entropy'].cuda()
                 mae = data_i['mae'].cuda()
                 distance = data_i['distance'].cuda()
 
                 # Evaluating
-                loss, outputs = trainer.run_validation_prior(original, synthesis, semantic, label, entropy, mae, distance)
+                loss, outputs = trainer.run_validation_prior(original, synthesis, semantic, label, entropy, mae,
+                                                             distance)
             else:
                 loss, outputs = trainer.run_validation(original, synthesis, semantic, label)
-                
+
             val_loss += loss
             outputs = softmax(outputs)
             (softmax_pred, predictions) = torch.max(outputs, dim=1)
@@ -395,7 +401,7 @@ for epoch in iter_counter.training_epochs():
                 # post processing for semantic, label and prediction
                 semantic_post = torch.zeros([original.shape[0], 3, 256, 512])
                 for idx, semantic_ in enumerate(semantic):
-                    (_, semantic_) = torch.max(semantic_, dim = 0)
+                    (_, semantic_) = torch.max(semantic_, dim=0)
                     semantic_ = 256 - np.asarray(ToPILImage()(semantic_.type(torch.FloatTensor).cpu()))
                     semantic_[semantic_ == 256] = 0
                     semantic_ = visualization.colorize_mask(semantic_)
@@ -418,14 +424,14 @@ for epoch in iter_counter.training_epochs():
                     predictions_ = ToTensor()(Image.fromarray(predictions_).convert('RGB'))
                     predictions_post[idx, :, :, :] = predictions_
 
-                all_images = torch.zeros([original.shape[0]*5, 3, 256, 512])
+                all_images = torch.zeros([original.shape[0] * 5, 3, 256, 512])
                 for idx, (original_img, semantic_img, synthesis_img, label_img, predictions_img) in \
                         enumerate(zip(original, semantic_post, synthesis, label_post, predictions_post)):
-                    all_images[idx*5, :, :, :] = original_img
-                    all_images[idx*5+1, :, :, :] = semantic_img
-                    all_images[idx*5+2, :, :, :] = synthesis_img
-                    all_images[idx*5+3, :, :, :] = label_img
-                    all_images[idx*5+4, :, :, :] = predictions_img
+                    all_images[idx * 5, :, :, :] = original_img
+                    all_images[idx * 5 + 1, :, :, :] = semantic_img
+                    all_images[idx * 5 + 2, :, :, :] = synthesis_img
+                    all_images[idx * 5 + 3, :, :, :] = label_img
+                    all_images[idx * 5 + 4, :, :, :] = predictions_img
                 grid = make_grid(all_images, 5)
             image_writer.add_image('results', grid, epoch)
 
@@ -435,12 +441,12 @@ for epoch in iter_counter.training_epochs():
 
     trainer.update_learning_rate_schedule(avg_val_loss)
     iter_counter.record_epoch_end()
-    
+
     if (epoch % config['logger']['save_epoch_freq'] == 0 or epoch == iter_counter.total_epochs):
         print('saving the model at the end of epoch %d, iters %d' %
               (epoch, iter_counter.total_steps_so_far))
         trainer.save(save_fdr, epoch, exp_name)
-        
+
 train_writer.close()
 val_writer.close()
 test_writer.close()

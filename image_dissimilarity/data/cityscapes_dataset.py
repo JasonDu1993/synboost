@@ -27,7 +27,7 @@ class CityscapesDataset(Dataset):
 
     def __init__(self, dataroot, preprocess_mode, crop_size=512, aspect_ratio=0.5, flip=False, normalize=False,
                  prior=False, only_valid=False, roi=False, light_data=False, void=False, num_semantic_classes=19,
-                 is_train=True, is_opencv=False):
+                 is_train=True, is_opencv=True):
         self.is_opencv = is_opencv
 
         self.original_paths = [os.path.join(dataroot, 'original', image)

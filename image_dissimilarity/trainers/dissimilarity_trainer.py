@@ -50,8 +50,8 @@ class DissimilarityTrainer():
             self.diss_model.load_state_dict(model_weights, strict=False)
             # NOTE: For old models, there were some correlation weights created that were not used in the foward pass. That's the reason to include strict=False
 
-        print('Printing Model Parameters')
-        print(self.diss_model.parameters)
+        # print('Printing Model Parameters')
+        # print(self.diss_model.parameters)
 
         lr_config = config['optimizer']
         lr_options = lr_config['parameters']
